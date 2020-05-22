@@ -8,23 +8,42 @@ These scripts are helpful to generate the required icons (including `Assets.car`
 The script takes 3 parameters:
 
 - path to the icon image to use as the base, we suggest a 1024x1024 pixel image;
+- path to the launch / default image to use as the base, we suggest a large 2732x2732 pixel image;
 - colour to use to fill background when required for default images. 
   - Of the format "#RRGGBB";
 - [optional] output path for the files. You can use this to point to the assets output folder of your application. Defaults to a directory `dst`.
 
 
 
+The script uses imagemagick's `convert` to resize the images so you need to have this installed.
+
+```
+brew install imagemagick
+```
+
+
 ### Examples
 
 ```
-generate.sh icon.png "#ff0000" 
+generate.sh icon.png launch.png "#ff0000" 
 ```
 
 ```
-generate.sh icon.png "#ff0000" out
+generate.sh icon.png launch.png "#ff0000" out
 ```
 
 
+The default:
+
+```
+generate.sh
+```
+
+uses: 
+- icon: `icon.png`
+- launch: `launch.png`
+- no background colour
+- outputs to `out`
 
 
 ### Outputs
@@ -33,6 +52,7 @@ Currently this script outputs the following icons and default images:
 
 ```
 |____Assets.car
+|____LaunchScreen.storyboardc
 |____Default-Portrait@2x.png
 |____Default-414w-736h@3x~iphone.png
 |____Default-568h@2x~iphone.png
@@ -75,7 +95,7 @@ Currently this script outputs the following icons and default images:
 | |____icon167x167.png
 ```
 
-Add the following to your application descriptor to pick up these icon image names:
+Add the following to your application descriptor to pick up these icon image names (edit as required):
 
 ```xml
     <icon>
@@ -102,5 +122,13 @@ Add the following to your application descriptor to pick up these icon image nam
         <image512x512>icons/icon512x512.png</image512x512>
         <image1024x1024>icons/icon1024x1024.png</image1024x1024>
     </icon>
+```
+
+
+Add the following to your iOS info additions for launch storyboard support:
+
+```xml
+<key>UILaunchStoryboardName</key>
+<string>LaunchScreen</string>
 ```
 

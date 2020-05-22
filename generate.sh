@@ -19,35 +19,38 @@ if [ ! -f "$ICON" ]; then
     usage
 fi
 
-echo "icon=$ICON"
-echo "launch=$LAUNCH"
+echo "USING:"
+echo "  icon=$ICON"
+echo "  launch=$LAUNCH"
 
-set -x
+# set -x
 
 # Directories
 # -------------------------------------------
 
 SCRIPTDIR=`dirname $0`
 WORKINGDIR=`PWD`
+ASSETSDIR=$WORKINGDIR/assets
 OUTPUTDIR=$WORKINGDIR/$OUTPUT
 
-mkdir $OUTPUTDIR  
+mkdir "$OUTPUTDIR"  2>/dev/null
+mkdir "$ASSETSDIR"  2>/dev/null
 
 
 
 # Download xcassets
 # -------------------------------------------
-if [ ! -d "$WORKINGDIR/Assets.xcassets" ]; then 
-    curl https://airnativeextensions.github.io/tutorials/resources/ios/assets-car-build.zip --output .tmp.assets-car-build.zip
-    unzip -o .tmp.assets-car-build.zip 'assets-car-build/Assets.xcassets/*' -d "$WORKINGDIR"
-    mv $WORKINGDIR/assets-car-build/Assets.xcassets .
-    rm -Rf assets-car-build
-    rm -Rf .tmp.assets-car-build.zip
+if [ ! -d "$ASSETSDIR/Assets.xcassets" ]; then 
+    echo "Downloading assets"
+    curl -L "https://github.com/distriqt/AIR-ImageScripts/blob/master/generate-assets.zip?raw=true" --output .tmp.generate-assets.zip
+    unzip -o .tmp.generate-assets.zip -d "$ASSETSDIR"
+    rm -Rf .tmp.generate-assets.zip
 fi
 
 
 # App Icons
 # -------------------------------------------
+echo "Generating icons"
 c="convert -background none"
 
 ICONDIR=$OUTPUTDIR/icons
@@ -80,6 +83,7 @@ $c "$ICON" -resize 1024x1024 "$ICONDIR/icon1024x1024.png"
 
 # Default Images
 # -------------------------------------------
+echo "Generating Default pngs"
 
 LAUNCHIMAGEDIR=$OUTPUTDIR
 mkdir -p "$LAUNCHIMAGEDIR"
@@ -140,15 +144,17 @@ fi
 
 # Assets.car
 # -------------------------------------------
+
+echo "Generating Assets.car"
 c="convert -background none"
 
-TMPDIR=$SCRIPTDIR/tmp
+TMPDIR=$WORKINGDIR/tmp
 
-rm -Rf $TMPDIR
-mkdir $TMPDIR
+rm -Rf "$TMPDIR"
+mkdir "$TMPDIR"
 
-ASSETICONS=$WORKINGDIR/Assets.xcassets/AppIcon.appiconset
-LAUNCHSET=$WORKINGDIR/Assets.xcassets/LaunchImage.imageset
+ASSETICONS=$ASSETSDIR/Assets.xcassets/AppIcon.appiconset
+LAUNCHSET=$ASSETSDIR/Assets.xcassets/LaunchImage.imageset
 
 $c "$ICON" -resize 20x20   "$ASSETICONS/Icon-App-20x20@1x.png"
 $c "$ICON" -resize 40x40   "$ASSETICONS/Icon-App-20x20@2x.png"
@@ -185,6 +191,10 @@ else
 fi
 
 
-xcrun actool $SCRIPTDIR/Assets.xcassets --compile $TMPDIR --platform iphoneos --minimum-deployment-target 8.0 --app-icon AppIcon --output-partial-info-plist $TMPDIR/partial.plist
-cp -Rf $TMPDIR/Assets.car $OUTPUTDIR/.
-rm -Rf $TMPDIR
+xcrun actool "$ASSETSDIR/Assets.xcassets" --compile "$TMPDIR" --platform iphoneos --minimum-deployment-target 8.0 --app-icon AppIcon --output-partial-info-plist "$TMPDIR/partial.plist" 1>/dev/null 
+cp -Rf "$TMPDIR/Assets.car" "$OUTPUTDIR/."
+cp -Rf "$ASSETSDIR/LaunchScreen.storyboardc" "$OUTPUTDIR/."
+rm -Rf "$TMPDIR"
+
+
+echo "========== COMPLETE =============="
