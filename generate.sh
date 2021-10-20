@@ -146,6 +146,8 @@ fi
 # -------------------------------------------
 
 echo "Generating Assets.car"
+echo " - Assets.car: Icons"
+
 c="convert -background none"
 
 TMPDIR=$WORKINGDIR/tmp
@@ -183,6 +185,7 @@ $c "$ICON" -resize 196x196 "$ASSETICONS/Icon-98@2x.png"
 $c "$ICON" -resize 512x512   "$ASSETICONS/iTunesArtwork.png"
 $c "$ICON" -resize 1024x1024 "$ASSETICONS/iTunesArtwork@2x.png"
 
+echo " - Assets.car: Icons created"
 
 if [ -f "$LAUNCH" ]; then
     cp "$LAUNCH" "$LAUNCHSET/LaunchImage.png"
@@ -190,8 +193,16 @@ else
     cp "$LAUNCHIMAGEDIR/Default-Portrait@2x.png" "$LAUNCHSET/LaunchImage.png"
 fi
 
+echo " - Assets.car: actool"
 
-xcrun actool "$ASSETSDIR/Assets.xcassets" --compile "$TMPDIR" --platform iphoneos --minimum-deployment-target 8.0 --app-icon AppIcon --output-partial-info-plist "$TMPDIR/partial.plist" 1>/dev/null 
+xcrun actool "$ASSETSDIR/Assets.xcassets" --compile "$TMPDIR" \
+    --platform iphoneos \
+    --minimum-deployment-target 9.0 \
+    --app-icon AppIcon \
+    --output-partial-info-plist "$TMPDIR/partial.plist" 1>/dev/null 2>/dev/null
+
+echo " - Assets.car: actool complete"
+
 cp -Rf "$TMPDIR/Assets.car" "$OUTPUTDIR/."
 cp -Rf "$ASSETSDIR/LaunchScreen.storyboardc" "$OUTPUTDIR/."
 rm -Rf "$TMPDIR"
