@@ -173,16 +173,16 @@ $c "$ICON" -resize 76x76   "$ASSETICONS/Icon-App-76x76@1x.png"
 $c "$ICON" -resize 152x152 "$ASSETICONS/Icon-App-76x76@2x.png"
 $c "$ICON" -resize 167x167 "$ASSETICONS/Icon-App-83.5x83.5@2x.png"
 
-$c "$ICON" -resize 48x48   "$ASSETICONS/Icon-24@2x.png"
-$c "$ICON" -resize 55x55   "$ASSETICONS/Icon-27.5@2x.png"
-$c "$ICON" -resize 58x58   "$ASSETICONS/Icon-29@2x.png"
-$c "$ICON" -resize 87x87   "$ASSETICONS/Icon-29@3x.png"
-$c "$ICON" -resize 80x80   "$ASSETICONS/Icon-40@2x.png"
-$c "$ICON" -resize 88x88   "$ASSETICONS/Icon-44@2x.png"
-$c "$ICON" -resize 172x172 "$ASSETICONS/Icon-86@2x.png"
-$c "$ICON" -resize 196x196 "$ASSETICONS/Icon-98@2x.png"
+# $c "$ICON" -resize 48x48   "$ASSETICONS/Icon-24@2x.png"
+# $c "$ICON" -resize 55x55   "$ASSETICONS/Icon-27.5@2x.png"
+# $c "$ICON" -resize 58x58   "$ASSETICONS/Icon-29@2x.png"
+# $c "$ICON" -resize 87x87   "$ASSETICONS/Icon-29@3x.png"
+# $c "$ICON" -resize 80x80   "$ASSETICONS/Icon-40@2x.png"
+# $c "$ICON" -resize 88x88   "$ASSETICONS/Icon-44@2x.png"
+# $c "$ICON" -resize 172x172 "$ASSETICONS/Icon-86@2x.png"
+# $c "$ICON" -resize 196x196 "$ASSETICONS/Icon-98@2x.png"
 
-$c "$ICON" -resize 512x512   "$ASSETICONS/iTunesArtwork.png"
+# $c "$ICON" -resize 512x512   "$ASSETICONS/iTunesArtwork.png"
 $c "$ICON" -resize 1024x1024 "$ASSETICONS/iTunesArtwork@2x.png"
 
 echo " - Assets.car: Icons created"
@@ -190,7 +190,8 @@ echo " - Assets.car: Icons created"
 if [ -f "$LAUNCH" ]; then
     cp "$LAUNCH" "$LAUNCHSET/LaunchImage.png"
 else 
-    cp "$LAUNCHIMAGEDIR/Default-Portrait@2x.png" "$LAUNCHSET/LaunchImage.png"
+    c="convert $ICON -background $FILL_COLOUR -gravity center"
+    $c -resize 1024x1024 -extent 2732x2732 "LAUNCHSET/LaunchImage.png"
 fi
 
 echo " - Assets.car: actool"
