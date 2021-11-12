@@ -11,7 +11,7 @@ usage() { echo "usage: $0 icon_image launch_image fill_bg_color [dst_dir]"; exit
 
 ICON=${1:-"icon.png"}
 LAUNCH=${2:-"launch.png"}
-FILL_COLOUR=${3:-"none"}
+FILL_COLOUR=${3:-"none"}    
 OUTPUT=${4:-"out"}
 
 
@@ -188,10 +188,10 @@ $c "$ICON" -resize 1024x1024 "$ASSETICONS/iTunesArtwork@2x.png"
 echo " - Assets.car: Icons created"
 
 if [ -f "$LAUNCH" ]; then
-    cp "$LAUNCH" "$LAUNCHSET/LaunchImage.png"
+    convert $LAUNCH -resize 2400x2400 "$LAUNCHSET/LaunchImage.png"
 else 
     c="convert $ICON -background $FILL_COLOUR -gravity center"
-    $c -resize 1024x1024 -extent 2732x2732 "LAUNCHSET/LaunchImage.png"
+    $c -resize 1024x1024 -extent 2400x2400 "$LAUNCHSET/LaunchImage.png"
 fi
 
 echo " - Assets.car: actool"
