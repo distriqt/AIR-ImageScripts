@@ -21,6 +21,12 @@ The script uses imagemagick's `convert` to resize the images so you need to have
 brew install imagemagick
 ```
 
+It also uses Xcode tools to create the `Assets.car` from your images. You need Xcode and then can install the build tools with:
+
+```
+xcode-select --install
+```
+
 
 ### Examples
 

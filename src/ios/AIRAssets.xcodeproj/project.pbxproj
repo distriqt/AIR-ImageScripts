@@ -97,7 +97,7 @@
 		E3C1EE7A202035F800744DFB /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 1310;
+				LastUpgradeCheck = 1330;
 				ORGANIZATIONNAME = distriqt;
 				TargetAttributes = {
 					E3C1EE81202035F800744DFB = {
