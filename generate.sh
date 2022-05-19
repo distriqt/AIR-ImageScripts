@@ -81,66 +81,6 @@ $c "$ICON" -resize 512x512 "$ICONDIR/icon512x512.png"
 $c "$ICON" -resize 1024x1024 "$ICONDIR/icon1024x1024.png"
 
 
-# Default Images
-# -------------------------------------------
-echo "Generating Default pngs"
-
-LAUNCHIMAGEDIR=$OUTPUTDIR
-mkdir -p "$LAUNCHIMAGEDIR"
-
-if [ -f $LAUNCH ]; then
-    # Resize to correct dimensions keeping aspect and cropping
-    c="convert $LAUNCH"
-
-    # iPhone
-    $c -resize 320x480^ -gravity center -extent 320x480 "$LAUNCHIMAGEDIR/Default~iphone.png"
-    $c -resize 640x960^ -gravity center -extent 640x960 "$LAUNCHIMAGEDIR/Default@2x~iphone.png"
-    $c -resize 640x1136^ -gravity center -extent 640x1136 "$LAUNCHIMAGEDIR/Default-568h@2x~iphone.png"
-    $c -resize 750x1334^ -gravity center -extent 750x1334  "$LAUNCHIMAGEDIR/Default-375w-667h@2x~iphone.png"
-    $c -resize 1242x2208^ -gravity center -extent 1242x2208 "$LAUNCHIMAGEDIR/Default-414w-736h@3x~iphone.png"
-    $c -resize 2208x1242^ -gravity center -extent 2208x1242 "$LAUNCHIMAGEDIR/Default-Landscape-414w-736h@3x~iphone.png"
-    $c -resize 1125x2436^ -gravity center -extent 1125x2436 "$LAUNCHIMAGEDIR/Default-812h@3x~iphone.png"
-    $c -resize 2436x1125^ -gravity center -extent 2436x1125 "$LAUNCHIMAGEDIR/Default-Landscape-812h@3x~iphone.png"
-
-    # iPad
-    $c -resize 768x1024^ -gravity center -extent 768x1024  "$LAUNCHIMAGEDIR/Default-Portrait~ipad.png"
-    $c -resize 1024x768^ -gravity center -extent 1024x768  "$LAUNCHIMAGEDIR/Default-Landscape~ipad.png"
-    $c -resize 1536x2048^ -gravity center -extent 1536x2048 "$LAUNCHIMAGEDIR/Default-Portrait@2x~ipad.png"
-    $c -resize 2048x1536^ -gravity center -extent 2048x1536 "$LAUNCHIMAGEDIR/Default-Landscape@2x~ipad.png"
-    $c -resize 1668x2224^ -gravity center -extent 1668x2224 "$LAUNCHIMAGEDIR/Default-Portrait-1112h@2x.png"
-    $c -resize 2224x1668^ -gravity center -extent 2224x1668 "$LAUNCHIMAGEDIR/Default-Landscape-1112h@2x.png"
-    $c -resize 2048x2732^ -gravity center -extent 2048x2732 "$LAUNCHIMAGEDIR/Default-Portrait@2x.png"
-    $c -resize 2732x2048^ -gravity center -extent 2732x2048 "$LAUNCHIMAGEDIR/Default-Landscape@2x.png"
-
-else 
-    # center icon in launch image area and fill with colour
-
-    c="convert $ICON -background $FILL_COLOUR -gravity center"
-
-    # iPhone
-    $c -resize 256x256 -extent 320x480  "$LAUNCHIMAGEDIR/Default~iphone.png"
-    $c -resize 512x512 -extent 640x960  "$LAUNCHIMAGEDIR/Default@2x~iphone.png"
-    $c -resize 512x512 -extent 640x1136 "$LAUNCHIMAGEDIR/Default-568h@2x~iphone.png"
-    $c -resize 512x512 -extent 750x1334  "$LAUNCHIMAGEDIR/Default-375w-667h@2x~iphone.png"
-    $c -resize 1024x1024 -extent 1242x2208 "$LAUNCHIMAGEDIR/Default-414w-736h@3x~iphone.png"
-    $c -resize 1024x1024 -extent 2208x1242 "$LAUNCHIMAGEDIR/Default-Landscape-414w-736h@3x~iphone.png"
-    $c -resize 1024x1024 -extent 1125x2436 "$LAUNCHIMAGEDIR/Default-812h@3x~iphone.png"
-    $c -resize 1024x1024 -extent 2436x1125 "$LAUNCHIMAGEDIR/Default-Landscape-812h@3x~iphone.png"
-
-    # iPad
-    $c -resize 512x512   -extent 768x1024  "$LAUNCHIMAGEDIR/Default-Portrait~ipad.png"
-    $c -resize 512x512   -extent 1024x768  "$LAUNCHIMAGEDIR/Default-Landscape~ipad.png"
-    $c -resize 1024x1024 -extent 1536x2048 "$LAUNCHIMAGEDIR/Default-Portrait@2x~ipad.png"
-    $c -resize 1024x1024 -extent 2048x1536 "$LAUNCHIMAGEDIR/Default-Landscape@2x~ipad.png"
-    $c -resize 1024x1024 -extent 1668x2224 "$LAUNCHIMAGEDIR/Default-Portrait-1112h@2x.png"
-    $c -resize 1024x1024 -extent 2224x1668 "$LAUNCHIMAGEDIR/Default-Landscape-1112h@2x.png"
-    $c -resize 1024x1024 -extent 2048x2732 "$LAUNCHIMAGEDIR/Default-Portrait@2x.png"
-    $c -resize 1024x1024 -extent 2732x2048 "$LAUNCHIMAGEDIR/Default-Landscape@2x.png"
-
-fi
-
-
-
 
 # Assets.car
 # -------------------------------------------
