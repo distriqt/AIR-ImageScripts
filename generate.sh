@@ -10,6 +10,7 @@
 usage() { echo "usage: $0 icon_image launch_image fill_bg_color [dst_dir]"; exit 1; }
 
 ICON=${1:-"icon.png"}
+ICON_ALT="icon-alt.png"
 LAUNCH=${2:-"launch.png"}
 FILL_COLOUR=${3:-"none"}    
 OUTPUT=${4:-"out"}
@@ -30,20 +31,21 @@ echo "  launch=$LAUNCH"
 
 SCRIPTDIR=`dirname $0`
 WORKINGDIR=`PWD`
-ASSETSDIR=$WORKINGDIR/assets
+ASSETSSRCDIR=$WORKINGDIR/assets/src
+ASSETSWORKING=$WORKINGDIR/assets/build
 OUTPUTDIR=$WORKINGDIR/$OUTPUT
 
-mkdir "$OUTPUTDIR"  2>/dev/null
-mkdir "$ASSETSDIR"  2>/dev/null
+mkdir -p "$OUTPUTDIR"  2>/dev/null
+mkdir -p "$ASSETSSRCDIR"  2>/dev/null
 
 
 
 # Download xcassets
 # -------------------------------------------
-if [ ! -d "$ASSETSDIR/Assets.xcassets" ]; then 
+if [ ! -d "$ASSETSSRCDIR/Assets.xcassets" ]; then 
     echo "Downloading assets"
     curl -L "https://github.com/distriqt/AIR-ImageScripts/blob/master/generate-assets.zip?raw=true" --output .tmp.generate-assets.zip
-    unzip -o .tmp.generate-assets.zip -d "$ASSETSDIR"
+    unzip -o .tmp.generate-assets.zip -d "$ASSETSSRCDIR"
     rm -Rf .tmp.generate-assets.zip
 fi
 
@@ -94,41 +96,61 @@ TMPDIR=$WORKINGDIR/tmp
 
 rm -Rf "$TMPDIR"
 mkdir "$TMPDIR"
+rm -Rf "${ASSETSWORKING}"
+cp -Rf "${ASSETSSRCDIR}" "${ASSETSWORKING}"
 
-ASSETICONS=$ASSETSDIR/Assets.xcassets/AppIcon.appiconset
-LAUNCHSET=$ASSETSDIR/Assets.xcassets/LaunchImage.imageset
+generate_appicon () {
+    ICONSRC=$1
+    ICONNAME=$2
+    APPICONSETSRC="${ASSETSSRCDIR}/Assets.xcassets/AppIcon.appiconset"
+    APPICONSET="${ASSETSWORKING}/Assets.xcassets/${ICONNAME}.appiconset"
 
-$c "$ICON" -resize 20x20   "$ASSETICONS/Icon-App-20x20@1x.png"
-$c "$ICON" -resize 40x40   "$ASSETICONS/Icon-App-20x20@2x.png"
-$c "$ICON" -resize 60x60   "$ASSETICONS/Icon-App-20x20@3x.png"
-$c "$ICON" -resize 29x29   "$ASSETICONS/Icon-App-29x29@1x.png"
-$c "$ICON" -resize 58x58   "$ASSETICONS/Icon-App-29x29@2x.png"
-$c "$ICON" -resize 87x87   "$ASSETICONS/Icon-App-29x29@3x.png"
-$c "$ICON" -resize 40x40   "$ASSETICONS/Icon-App-40x40@1x.png"
-$c "$ICON" -resize 80x80   "$ASSETICONS/Icon-App-40x40@2x.png"
-$c "$ICON" -resize 120x120 "$ASSETICONS/Icon-App-40x40@3x.png"
-$c "$ICON" -resize 120x120 "$ASSETICONS/Icon-App-60x60@2x.png"
-$c "$ICON" -resize 180x180 "$ASSETICONS/Icon-App-60x60@3x.png"
-$c "$ICON" -resize 76x76   "$ASSETICONS/Icon-App-76x76@1x.png"
-$c "$ICON" -resize 152x152 "$ASSETICONS/Icon-App-76x76@2x.png"
-$c "$ICON" -resize 167x167 "$ASSETICONS/Icon-App-83.5x83.5@2x.png"
+    if [ ! -d "${APPICONSET}" ]; then 
+        echo "generate_appicon: ${ICONNAME}.appiconset doesn't exist"
+        mkdir "${APPICONSET}"
+    fi
 
-# $c "$ICON" -resize 48x48   "$ASSETICONS/Icon-24@2x.png"
-# $c "$ICON" -resize 55x55   "$ASSETICONS/Icon-27.5@2x.png"
-# $c "$ICON" -resize 58x58   "$ASSETICONS/Icon-29@2x.png"
-# $c "$ICON" -resize 87x87   "$ASSETICONS/Icon-29@3x.png"
-# $c "$ICON" -resize 80x80   "$ASSETICONS/Icon-40@2x.png"
-# $c "$ICON" -resize 88x88   "$ASSETICONS/Icon-44@2x.png"
-# $c "$ICON" -resize 172x172 "$ASSETICONS/Icon-86@2x.png"
-# $c "$ICON" -resize 196x196 "$ASSETICONS/Icon-98@2x.png"
+    cp -Rf "${ASSETSSRCDIR}/Assets.xcassets/AppIcon.appiconset/Contents.json" "${APPICONSET}/Contents.json"
+    sed -i.bak "s/Icon-App/${ICONNAME}/" "${APPICONSET}/Contents.json"
 
-# $c "$ICON" -resize 512x512   "$ASSETICONS/iTunesArtwork.png"
-$c "$ICON" -resize 1024x1024 "$ASSETICONS/iTunesArtwork@2x.png"
+    rm -f ${APPICONSET}/Icon-App*
+    rm -f ${APPICONSET}/Contents.json.bak
 
-echo " - Assets.car: Icons created"
+    $c "${ICONSRC}" -resize 20x20   "${APPICONSET}/${ICONNAME}-20x20@1x.png"
+    $c "${ICONSRC}" -resize 40x40   "${APPICONSET}/${ICONNAME}-20x20@2x.png"
+    $c "${ICONSRC}" -resize 60x60   "${APPICONSET}/${ICONNAME}-20x20@3x.png"
+    $c "${ICONSRC}" -resize 29x29   "${APPICONSET}/${ICONNAME}-29x29@1x.png"
+    $c "${ICONSRC}" -resize 58x58   "${APPICONSET}/${ICONNAME}-29x29@2x.png"
+    $c "${ICONSRC}" -resize 87x87   "${APPICONSET}/${ICONNAME}-29x29@3x.png"
+    $c "${ICONSRC}" -resize 40x40   "${APPICONSET}/${ICONNAME}-40x40@1x.png"
+    $c "${ICONSRC}" -resize 80x80   "${APPICONSET}/${ICONNAME}-40x40@2x.png"
+    $c "${ICONSRC}" -resize 120x120 "${APPICONSET}/${ICONNAME}-40x40@3x.png"
+    $c "${ICONSRC}" -resize 120x120 "${APPICONSET}/${ICONNAME}-60x60@2x.png"
+    $c "${ICONSRC}" -resize 180x180 "${APPICONSET}/${ICONNAME}-60x60@3x.png"
+    $c "${ICONSRC}" -resize 76x76   "${APPICONSET}/${ICONNAME}-76x76@1x.png"
+    $c "${ICONSRC}" -resize 152x152 "${APPICONSET}/${ICONNAME}-76x76@2x.png"
+    $c "${ICONSRC}" -resize 167x167 "${APPICONSET}/${ICONNAME}-83.5x83.5@2x.png"
+
+    $c "${ICONSRC}" -resize 1024x1024 "${APPICONSET}/iTunesArtwork@2x.png"
+
+    echo " - Assets.car: ${ICONNAME} created"
+
+}
+
+generate_appicon "${ICON}" "AppIcon" 
+
+# If you have an "icon-alt.png" in the directory this will add an alternate icon to the asset catalogue (for dynamic icons)
+# To add another duplicate this section and change the source and name of the icon
+if [ -f "$ICON_ALT" ]; then 
+    generate_appicon "${ICON_ALT}" "AlternateIcon" 
+fi
+
+echo " - Assets.car: launch screen"
+
+LAUNCHSET=$ASSETSWORKING/Assets.xcassets/LaunchImage.imageset
 
 if [ -f "$LAUNCH" ]; then
-    convert $LAUNCH -resize 2400x2400 "$LAUNCHSET/LaunchImage.png"
+    convert $LAUNCH -resize 2400x2400 "$LAUNCHSET/LaunchImage.png" 2>/dev/null
 else 
     c="convert $ICON -background $FILL_COLOUR -gravity center"
     $c -resize 1024x1024 -extent 2400x2400 "$LAUNCHSET/LaunchImage.png"
@@ -136,17 +158,23 @@ fi
 
 echo " - Assets.car: actool"
 
-xcrun actool "$ASSETSDIR/Assets.xcassets" --compile "$TMPDIR" \
+xcrun actool "$ASSETSWORKING/Assets.xcassets" --compile "$TMPDIR" \
     --platform iphoneos \
     --minimum-deployment-target 9.0 \
+    --include-all-app-icons \
     --app-icon AppIcon \
     --output-partial-info-plist "$TMPDIR/partial.plist" 1>/dev/null 2>/dev/null
 
 echo " - Assets.car: actool complete"
 
 cp -Rf "$TMPDIR/Assets.car" "$OUTPUTDIR/."
-cp -Rf "$ASSETSDIR/LaunchScreen.storyboardc" "$OUTPUTDIR/."
+cp -Rf "$ASSETSWORKING/LaunchScreen.storyboardc" "$OUTPUTDIR/."
 rm -Rf "$TMPDIR"
-
+# rm -Rf "${ASSETSWORKING}"
 
 echo "========== COMPLETE =============="
+
+
+
+# List contents of asset catalogue
+#xcrun --sdk iphoneos assetutil --info "${OUTPUTDIR}/Assets.car"
