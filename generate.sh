@@ -9,11 +9,11 @@
 
 usage() { echo "usage: $0 icon_image launch_image fill_bg_color [dst_dir]"; exit 1; }
 
-ICON=${1:-"icon.png"}
+ICON=$(readlink -f ${1:-"icon.png"})
 ICON_ALT="icon-alt.png"
-LAUNCH=${2:-"launch.png"}
+LAUNCH=$(readlink -f ${2:-"launch.png"})
 FILL_COLOUR=${3:-"none"}    
-OUTPUT=${4:-"out"}
+OUTPUT=$(readlink -f ${4:-"out"})
 
 
 if [ ! -f "$ICON" ]; then 
@@ -31,21 +31,22 @@ echo "  launch=$LAUNCH"
 
 SCRIPTDIR=`dirname $0`
 WORKINGDIR=`PWD`
-ASSETSSRCDIR=$WORKINGDIR/assets/src
-ASSETSWORKING=$WORKINGDIR/assets/build
-OUTPUTDIR=$WORKINGDIR/$OUTPUT
+ASSETSDIR=${WORKINGDIR}/.air-icon-generation-assets
+ASSETSSRCDIR=${ASSETSDIR}/src
+ASSETSWORKING=${ASSETSDIR}/build
+OUTPUTDIR=$OUTPUT
 
-mkdir -p "$OUTPUTDIR"  2>/dev/null
-mkdir -p "$ASSETSSRCDIR"  2>/dev/null
+mkdir -p "${OUTPUTDIR}"  2>/dev/null
+mkdir -p "${ASSETSSRCDIR}"  2>/dev/null
 
 
 
 # Download xcassets
 # -------------------------------------------
-if [ ! -d "$ASSETSSRCDIR/Assets.xcassets" ]; then 
+if [ ! -d "${ASSETSSRCDIR}/Assets.xcassets" ]; then 
     echo "Downloading assets"
     curl -L "https://github.com/distriqt/AIR-ImageScripts/blob/master/generate-assets.zip?raw=true" --output .tmp.generate-assets.zip
-    unzip -o .tmp.generate-assets.zip -d "$ASSETSSRCDIR"
+    unzip -o .tmp.generate-assets.zip -d "${ASSETSSRCDIR}"
     rm -Rf .tmp.generate-assets.zip
 fi
 
@@ -55,8 +56,8 @@ fi
 echo "Generating icons"
 c="convert -background none"
 
-ICONDIR=$OUTPUTDIR/icons
-mkdir -p "$ICONDIR"
+ICONDIR=${OUTPUTDIR}/icons
+mkdir -p "${ICONDIR}"
 
 $c "$ICON" -resize 16x16 "$ICONDIR/icon16x16.png"
 $c "$ICON" -resize 20x20 "$ICONDIR/icon20x20.png"
@@ -68,6 +69,7 @@ $c "$ICON" -resize 48x48 "$ICONDIR/icon48x48.png"
 $c "$ICON" -resize 57x57 "$ICONDIR/icon57x57.png"
 $c "$ICON" -resize 58x58 "$ICONDIR/icon58x58.png"
 $c "$ICON" -resize 60x60 "$ICONDIR/icon60x60.png"
+$c "$ICON" -resize 64x64 "$ICONDIR/icon64x64.png"
 $c "$ICON" -resize 72x72 "$ICONDIR/icon72x72.png"
 $c "$ICON" -resize 76x76 "$ICONDIR/icon76x76.png"
 $c "$ICON" -resize 80x80 "$ICONDIR/icon80x80.png"
@@ -79,6 +81,7 @@ $c "$ICON" -resize 144x144 "$ICONDIR/icon144x144.png"
 $c "$ICON" -resize 152x152 "$ICONDIR/icon152x152.png"
 $c "$ICON" -resize 167x167 "$ICONDIR/icon167x167.png"
 $c "$ICON" -resize 180x180 "$ICONDIR/icon180x180.png"
+$c "$ICON" -resize 256x256 "$ICONDIR/icon512x512.png"
 $c "$ICON" -resize 512x512 "$ICONDIR/icon512x512.png"
 $c "$ICON" -resize 1024x1024 "$ICONDIR/icon1024x1024.png"
 
@@ -92,11 +95,16 @@ echo " - Assets.car: Icons"
 
 c="convert -background none"
 
-TMPDIR=$WORKINGDIR/tmp
-
-rm -Rf "$TMPDIR"
-mkdir "$TMPDIR"
-rm -Rf "${ASSETSWORKING}"
+TMPDIR=$WORKINGDIR/.air-icon-generation-tmp
+if [ -d "${TMPDIR}" ]; then 
+    echo "delete ${TMPDIR}"
+    rm -Rf "${TMPDIR}"
+    mkdir "$TMPDIR" 2>/dev/null
+fi
+if [ -d "${ASSETSWORKING}" ]; then 
+    echo "delete ${ASSETSWORKING}"
+    rm -Rf "${ASSETSWORKING}"
+fi
 cp -Rf "${ASSETSSRCDIR}" "${ASSETSWORKING}"
 
 generate_appicon () {
@@ -106,7 +114,7 @@ generate_appicon () {
     APPICONSET="${ASSETSWORKING}/Assets.xcassets/${ICONNAME}.appiconset"
 
     if [ ! -d "${APPICONSET}" ]; then 
-        echo "generate_appicon: ${ICONNAME}.appiconset doesn't exist"
+        echo "generate_appicon: ${ICONNAME}.appiconset doesn't exist - creating new icon set"
         mkdir "${APPICONSET}"
     fi
 
@@ -168,12 +176,9 @@ xcrun actool "$ASSETSWORKING/Assets.xcassets" --compile "$TMPDIR" \
 echo " - Assets.car: actool complete"
 
 cp -Rf "$TMPDIR/Assets.car" "$OUTPUTDIR/."
-cp -Rf "$ASSETSWORKING/LaunchScreen.storyboardc" "$OUTPUTDIR/."
-rm -Rf "$TMPDIR"
-# rm -Rf "${ASSETSWORKING}"
+cp -Rf "${ASSETSWORKING}/LaunchScreen.storyboardc" "$OUTPUTDIR/."
 
 echo "========== COMPLETE =============="
-
 
 
 # List contents of asset catalogue

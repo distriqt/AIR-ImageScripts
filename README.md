@@ -79,6 +79,7 @@ Currently this script outputs the following icons and default images:
 | |____icon120x120.png
 | |____icon48x48.png
 | |____icon60x60.png
+| |____icon64x64.png
 | |____icon58x58.png
 | |____icon36x36.png
 | |____icon72x72.png
@@ -97,6 +98,7 @@ Currently this script outputs the following icons and default images:
 | |____icon40x40.png
 | |____icon114x114.png
 | |____icon144x144.png
+| |____icon256x256.png
 | |____icon128x128.png
 | |____icon167x167.png
 ```
