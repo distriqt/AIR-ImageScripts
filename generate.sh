@@ -13,8 +13,7 @@ ICON=$(readlink -f ${1:-"icon.png"})
 ICON_ALT="icon-alt.png"
 LAUNCH=$(readlink -f ${2:-"launch.png"})
 FILL_COLOUR=${3:-"none"}    
-OUTPUT=$(readlink -f ${4:-"out"})
-
+OUTPUT=${4:-"out"}
 
 if [ ! -f "$ICON" ]; then 
     usage
@@ -34,10 +33,15 @@ WORKINGDIR=`PWD`
 ASSETSDIR=${WORKINGDIR}/.air-icon-generation-assets
 ASSETSSRCDIR=${ASSETSDIR}/src
 ASSETSWORKING=${ASSETSDIR}/build
-OUTPUTDIR=$OUTPUT
 
-mkdir -p "${OUTPUTDIR}"  2>/dev/null
+mkdir -p "${OUTPUT}"  2>/dev/null
 mkdir -p "${ASSETSSRCDIR}"  2>/dev/null
+
+OUTPUTDIR=$(readlink -f ${OUTPUT})
+if [ ! -d "${OUTPUTDIR}" ]; then 
+    echo "No output dir: ${OUTPUTDIR}"
+    usage 
+fi
 
 
 
@@ -45,8 +49,12 @@ mkdir -p "${ASSETSSRCDIR}"  2>/dev/null
 # -------------------------------------------
 if [ ! -d "${ASSETSSRCDIR}/Assets.xcassets" ]; then 
     echo "Downloading assets"
-    curl -L "https://github.com/distriqt/AIR-ImageScripts/blob/master/generate-assets.zip?raw=true" --output .tmp.generate-assets.zip
-    unzip -o .tmp.generate-assets.zip -d "${ASSETSSRCDIR}"
+    until $(curl -L "https://github.com/distriqt/AIR-ImageScripts/blob/master/generate-assets.zip?raw=true" --output .tmp.generate-assets.zip); do
+        printf '.'
+        sleep 5
+    done
+    # curl -L "https://github.com/distriqt/AIR-ImageScripts/blob/master/generate-assets.zip?raw=true" --output .tmp.generate-assets.zip
+    unzip -qq -o .tmp.generate-assets.zip -d "${ASSETSSRCDIR}"
     rm -Rf .tmp.generate-assets.zip
 fi
 
@@ -95,12 +103,12 @@ echo " - Assets.car: Icons"
 
 c="convert -background none"
 
-TMPDIR=$WORKINGDIR/.air-icon-generation-tmp
+TMPDIR=${WORKINGDIR}/.air-icon-generation-tmp
 if [ -d "${TMPDIR}" ]; then 
     echo "delete ${TMPDIR}"
     rm -Rf "${TMPDIR}"
-    mkdir "$TMPDIR" 2>/dev/null
 fi
+mkdir "${TMPDIR}" 2>/dev/null
 if [ -d "${ASSETSWORKING}" ]; then 
     echo "delete ${ASSETSWORKING}"
     rm -Rf "${ASSETSWORKING}"
@@ -157,26 +165,26 @@ echo " - Assets.car: launch screen"
 
 LAUNCHSET=$ASSETSWORKING/Assets.xcassets/LaunchImage.imageset
 
-if [ -f "$LAUNCH" ]; then
-    convert $LAUNCH -resize 2400x2400 "$LAUNCHSET/LaunchImage.png" 2>/dev/null
+if [ -f "${LAUNCH}" ]; then
+    convert ${LAUNCH} -resize 2400x2400 "${LAUNCHSET}/LaunchImage.png" 2>/dev/null
 else 
-    c="convert $ICON -background $FILL_COLOUR -gravity center"
-    $c -resize 1024x1024 -extent 2400x2400 "$LAUNCHSET/LaunchImage.png"
+    c="convert ${ICON} -background ${FILL_COLOUR} -gravity center"
+    $c -resize 1024x1024 -extent 2400x2400 "${LAUNCHSET}/LaunchImage.png"
 fi
 
 echo " - Assets.car: actool"
 
-xcrun actool "$ASSETSWORKING/Assets.xcassets" --compile "$TMPDIR" \
+xcrun actool "${ASSETSWORKING}/Assets.xcassets" --compile "${TMPDIR}" \
     --platform iphoneos \
     --minimum-deployment-target 9.0 \
     --include-all-app-icons \
     --app-icon AppIcon \
-    --output-partial-info-plist "$TMPDIR/partial.plist" 1>/dev/null 2>/dev/null
+    --output-partial-info-plist "${TMPDIR}/partial.plist" 1>/dev/null 2>/dev/null
 
 echo " - Assets.car: actool complete"
 
-cp -Rf "$TMPDIR/Assets.car" "$OUTPUTDIR/."
-cp -Rf "${ASSETSWORKING}/LaunchScreen.storyboardc" "$OUTPUTDIR/."
+cp -Rf "${TMPDIR}/Assets.car" "${OUTPUTDIR}/."
+cp -Rf "${ASSETSWORKING}/LaunchScreen.storyboardc" "${OUTPUTDIR}/."
 
 echo "========== COMPLETE =============="
 
