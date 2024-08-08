@@ -2,30 +2,36 @@
 
 ## AIR Image Scripts
 
-These scripts are helpful to generate the required icons (including `Assets.car`) and default launch images.
+These scripts are helpful to generate the required icons (including `Assets.car`) and the iOS launch storyboard.
+
+The script takes several optional parameters:
+
+- [optional] path to the icon image to use as the base, we suggest a 1024x1024 pixel image (defaults to `icon.png`);
+- [optional] path to the launch / default image to use as the base, we suggest a large 2732x2732 pixel image (defaults to `launch.png`);
+- [optional] colour to use to fill background when required for default images
+  - in the format: `"#RRGGBB"`;
+- [optional] output path for the files. You can use this to point to the assets output folder of your application (defaults to `out`);
+- [optional] path to an alternate icon image which will be added as the `AlternateIcon`, we suggest a 1024x1024 pixel image (defaults to `icon-alt.png`);
 
 
-The script takes 3 parameters:
+### Installation
 
-- path to the icon image to use as the base, we suggest a 1024x1024 pixel image;
-- path to the launch / default image to use as the base, we suggest a large 2732x2732 pixel image;
-- colour to use to fill background when required for default images. 
-  - Of the format "#RRGGBB";
-- [optional] output path for the files. You can use this to point to the assets output folder of your application. Defaults to a directory `dst`.
-
-
-
-The script uses imagemagick's `convert` to resize the images so you need to have this installed.
+The script uses imagemagick to resize the images so you need to have this installed.
 
 ```
 brew install imagemagick
 ```
+
+> This needs to be at least version 7
+
 
 It also uses Xcode tools to create the `Assets.car` from your images. You need Xcode and then can install the build tools with:
 
 ```
 xcode-select --install
 ```
+
+> We recommend using Xcode 15 currently
 
 
 ### Examples
@@ -35,7 +41,7 @@ generate.sh icon.png launch.png "#ff0000"
 ```
 
 ```
-generate.sh icon.png launch.png "#ff0000" out
+generate.sh icon.png launch.png "#ff0000" out icon-alt.png
 ```
 
 
@@ -50,6 +56,7 @@ uses:
 - launch: `launch.png`
 - no background colour
 - outputs to `out`
+- alternate icon: `icon-alt.png`
 
 
 ### Outputs
@@ -59,22 +66,6 @@ Currently this script outputs the following icons and default images:
 ```
 |____Assets.car
 |____LaunchScreen.storyboardc
-|____Default-Portrait@2x.png
-|____Default-414w-736h@3x~iphone.png
-|____Default-568h@2x~iphone.png
-|____Default-375w-667h@2x~iphone.png
-|____Default-Portrait@2x~ipad.png
-|____Default-Landscape@2x.png
-|____Default-Landscape~ipad.png
-|____Default-Portrait~ipad.png
-|____Default-812h@3x~iphone.png
-|____Default~iphone.png
-|____Default-Landscape-1112h@2x.png
-|____Default-Landscape@2x~ipad.png
-|____Default-Landscape-414w-736h@3x~iphone.png
-|____Default-Portrait-1112h@2x.png
-|____Default-Landscape-812h@3x~iphone.png
-|____Default@2x~iphone.png
 |____icons
 | |____icon120x120.png
 | |____icon48x48.png
