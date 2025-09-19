@@ -51,11 +51,10 @@ fi
 # -------------------------------------------
 if [ ! -d "${ASSETSSRCDIR}/Assets.xcassets" ]; then 
     echo "Downloading assets"
-    until $(curl -L "https://github.com/distriqt/AIR-ImageScripts/blob/master/generate-assets.zip?raw=true" --output .tmp.generate-assets.zip); do
+    until $(curl -L "https://github.com/distriqt/AIR-ImageScripts/releases/download/v1.0/generate-assets.zip" --output .tmp.generate-assets.zip); do
         printf '.'
         sleep 5
     done
-    # curl -L "https://github.com/distriqt/AIR-ImageScripts/blob/master/generate-assets.zip?raw=true" --output .tmp.generate-assets.zip
     unzip -qq -o .tmp.generate-assets.zip -d "${ASSETSSRCDIR}"
     rm -Rf .tmp.generate-assets.zip
 fi

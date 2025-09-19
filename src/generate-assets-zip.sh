@@ -3,7 +3,7 @@
 WORKINGDIR=`PWD`
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PACKAGEDIR=${SCRIPTDIR}/generate-assets
-OUTPUTNAME=generate-assets.zip
+OUTPUTNAME=generate-assets-v2.zip
 
 echo ${WORKINGDIR}
 echo ${SCRIPTDIR}
@@ -18,6 +18,7 @@ xcodebuild -quiet -project "${SCRIPTDIR}/ios/AIRAssets.xcodeproj/" -alltargets b
 find "${SCRIPTDIR}" -name .DS_Store -delete
 cp -Rf "${SCRIPTDIR}/ios/AIRAssets/Assets.xcassets" "${PACKAGEDIR}/." 
 cp -Rf "${SCRIPTDIR}/ios/Build/Release-iphoneos/AIRAssets.app/Base.lproj/LaunchScreen.storyboardc" "${PACKAGEDIR}/."
+cp -Rf "${SCRIPTDIR}/android/res" "${PACKAGEDIR}/."
 
 cd "${PACKAGEDIR}"
 rm -Rf "${WORKINGDIR}/${OUTPUTNAME}"
