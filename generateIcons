@@ -1,0 +1,537 @@
+#!/bin/bash
+
+SCRIPTDIR=`dirname $0`
+WORKINGDIR=`PWD`
+
+# Uses imagemagick 
+# brew install imagemagick
+
+# Usage
+# -------------------------------------------
+# Example: `generate.sh icon.png launch.png "#ff0000" src`
+# 
+# Ideally you should provide a 1024x1024 icon-foreground.png with transparency and an icon-background.png 
+# The script will composite these together to create the icon.png, and use the foreground for the tinted and monochrome icons
+# If you don't provide these it will use the icon.png for all icons
+# Additionally for you should provide a icon-dark.png for dark mode icons.
+# 
+# You should also provide a launch.png which is ideally 2732x2732 (to cover all screen sizes). 
+# If you don't provide this it will use the icon.png centred on a background of the specified fill colour (default)
+
+
+# Check if required dependencies are installed
+check_dependencies() {
+    if ! command -v magick &> /dev/null; then
+        echo "Error: ImageMagick is not installed or not in your PATH"
+        echo "Please install ImageMagick with:"
+        echo "  brew install imagemagick"
+        exit 1
+    fi
+    
+    # Check for xcrun (only needed on macOS for Assets.car generation)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if ! command -v xcrun &> /dev/null; then
+            echo "Warning: xcrun not found. Assets.car generation may fail."
+            echo "Make sure Xcode command line tools are installed."
+        fi
+    fi
+    
+    echo "Dependencies check passed: ImageMagick is installed"
+}
+
+# Parse command line options
+parse_args() {
+    ICON_FOREGROUND_PATH="icon-foreground.png"
+    ICON_BACKGROUND_PATH="icon-background.png"
+    ICON_MONOCHROME_PATH="icon-monochrome.png"
+    ICON_DARK_PATH="icon-dark.png"
+    ICON_PATH="icon.png"
+    ICON_ALT_PATH=""
+    LAUNCH_PATH="launch.png"
+    FILL_COLOUR="none"
+    OUTPUT=""
+    
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -s|--source)
+                WORKINGDIR=$(readlink -f "$2")
+                shift 2
+                ;;
+            -o|--output)
+                OUTPUT="$2"
+                shift 2
+                ;;
+            -f|--foreground)
+                ICON_FOREGROUND_PATH="$2"
+                shift 2
+                ;;
+            -b|--background)
+                ICON_BACKGROUND_PATH="$2"
+                shift 2
+                ;;
+            -m|--monochrome)
+                ICON_MONOCHROME_PATH="$2"
+                shift 2
+                ;;
+            -i|--icon)
+                ICON_PATH="$2"
+                shift 2
+                ;;
+            -d|--dark)
+                ICON_DARK_PATH="$2"
+                shift 2
+                ;;
+            -a|--alt)
+                ICON_ALT_PATH="$2"
+                shift 2
+                ;;
+            -l|--launch)
+                LAUNCH_PATH="$2"
+                shift 2
+                ;;
+            -c|--color)
+                FILL_COLOUR="$2"
+                shift 2
+                ;;
+            -h|--help)
+                show_usage
+                exit 0
+                ;;
+            *)
+                echo "Unknown option: $1"
+                show_usage
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# Display usage information
+show_usage() {
+    echo "Usage: $0 [options]"
+    echo "Options:"
+    echo "  -s, --source DIR        Source directory (default: current directory)"
+    echo "  -o, --output DIR        Output directory (default: out)"
+    echo "  -f, --foreground FILE   Icon foreground layer image with transparency (default: icon-foreground.png)"
+    echo "  -b, --background FILE   Icon background layer image (default: icon-background.png)"
+    echo "  -m, --monochrome FILE   Icon monochrome image (default: icon-monochrome.png)"
+    echo "  -i, --icon FILE         Main icon image (default: icon.png)"
+    echo "  -d, --dark FILE         Dark mode icon image"
+    echo "  -a, --alt FILE          Alternate icon image"
+    echo "  -l, --launch FILE       Launch screen image (default: launch.png)"
+    echo "  -c, --color COLOR       Fill background color (default: none)"
+    echo "  -h, --help              Display this help message"
+    exit 1
+}
+
+# Download assets if not present
+download_assets() {
+
+    local download_dir=$1
+    local download_assets_zip=${download_dir}/generate-assets-v2.zip
+
+    if [ ! -f "${download_assets_zip}" ]; then
+        echo "Downloading assets: ${download_assets_zip}"
+        until $(curl -L "https://github.com/distriqt/AIR-ImageScripts/releases/download/v2.0/generate-assets-v2.zip" --output "${download_assets_zip}"); do
+            printf '.'
+            sleep 5
+        done
+    fi
+
+    if ([ ! -d "${ASSETSSRCDIR}/Assets.xcassets" ] && [ -f "${download_assets_zip}"  ] ); then 
+        unzip -qq -o "${download_assets_zip}" -d "${ASSETSSRCDIR}"
+        if [ $? -ne 0 ]; then
+            rm -f "${download_assets_zip}" 2>/dev/null
+            echo "Error: Failed to extract assets. Unzip operation failed."
+            exit 1
+        fi
+    fi
+
+    if [ ! -d "${ASSETSSRCDIR}/Assets.xcassets" ]; then 
+        echo "Error: Failed to download and extract assets"
+        rm -f "${download_assets_zip}" 2>/dev/null
+        exit 1
+    fi
+}
+
+
+layer_images() {
+    local foreground=$1
+    local background=$2
+    local output=$3
+    local position=${4:-"center"}  # Default position is center
+    local offset=${5:-"+0+0"}      # Default offset is +0+0
+    
+    magick composite -gravity $position -geometry $offset "$foreground" "$background" "$output"
+}
+
+
+# Arguments
+# -------------------------------------------
+
+check_dependencies
+
+parse_args "$@"
+
+
+# Set up the variables with the parsed arguments
+ICON_FOREGROUND=$([ -n "$ICON_FOREGROUND_PATH" ] && readlink -f "$WORKINGDIR/$ICON_FOREGROUND_PATH" || echo "")
+ICON_DARK=$([ -n "$ICON_DARK_PATH" ] && readlink -f "$WORKINGDIR/$ICON_DARK_PATH" || echo "")
+ICON_INPUT=$(readlink -f "$WORKINGDIR/${ICON_PATH}")
+ICON_BACKGROUND_INPUT=$([ -n "$ICON_BACKGROUND_PATH" ] && readlink -f "$WORKINGDIR/$ICON_BACKGROUND_PATH" || echo "")
+ICON_MONOCHROME_INPUT=$([ -n "$ICON_MONOCHROME_PATH" ] && readlink -f "$WORKINGDIR/$ICON_MONOCHROME_PATH" || echo "")
+ICON_ALT=$([ -n "$ICON_ALT_PATH" ] && (readlink -f "$WORKINGDIR/$ICON_ALT_PATH" || readlink -f "$SCRIPTDIR/$ICON_ALT_PATH") || echo "")
+LAUNCH=$(readlink -f "$WORKINGDIR/${LAUNCH_PATH}")
+OUTPUT=${OUTPUT:-"$WORKINGDIR/out"}
+
+
+
+CONVERT="magick -background none"
+
+
+# Directories
+# -------------------------------------------
+
+if [ ! -d "${WORKINGDIR}" ]; then 
+    echo "No working dir: ${WORKINGDIR}"
+    show_usage 
+fi
+
+ASSETSDIR=${WORKINGDIR}/.air-icon-generation-assets-v2
+
+
+ASSETSSRCDIR=${ASSETSDIR}/src
+ASSETSWORKING=${ASSETSDIR}/build
+if [ -d "${ASSETSWORKING}" ]; then 
+    rm -Rf "${ASSETSWORKING}"
+fi
+
+mkdir -p "${OUTPUT}"  2>/dev/null
+OUTPUTDIR=$(readlink -f ${OUTPUT})
+if [ ! -d "${OUTPUTDIR}" ]; then 
+    echo "No output dir: ${OUTPUTDIR}"
+    show_usage 
+fi
+
+TMPDIR=${WORKINGDIR}/.air-icon-generation-tmp
+if [ -d "${TMPDIR}" ]; then 
+    rm -Rf "${TMPDIR}"
+fi
+mkdir "${TMPDIR}" 2>/dev/null
+
+ICON=${TMPDIR}/icon.png
+ICON_BACKGROUND=${TMPDIR}/icon-background.png
+BACKGROUND_COLOR="#000000"
+ICON_MONOCHROME=${TMPDIR}/icon-monochrome.png
+
+mkdir -p "${ASSETSSRCDIR}"  2>/dev/null
+download_assets ${ASSETSDIR}
+cp -Rf "${ASSETSSRCDIR}" "${ASSETSWORKING}"
+
+
+# Check Icons 
+# -------------------------------------------
+
+echo "USING:"
+echo "  working-dir: $WORKINGDIR"
+
+# Check if main icon exists
+if ([ ! -f "$ICON_FOREGROUND" ] && [ -f "$ICON_INPUT" ]); then
+    echo "  icon-foreground: WARNING: using main icon - you should provide a foreground icon with transparency"
+    ICON_FOREGROUND="$ICON_INPUT"
+elif [ ! -f "$ICON_FOREGROUND" ]; then 
+    echo "ERROR: Foreground layer icon file '$ICON_FOREGROUND' not found"
+    show_usage
+fi
+
+echo "  icon-foreground: $ICON_FOREGROUND"
+
+if [ ! -f "$ICON_BACKGROUND_INPUT" ]; then 
+    echo "  icon-background: using solid color $BACKGROUND_COLOR"
+    magick -size "1024x1024" "xc:$BACKGROUND_COLOR" "${ICON_BACKGROUND}" 
+else 
+    echo "  icon-background: $ICON_BACKGROUND_INPUT"
+    cp -f "${ICON_BACKGROUND_INPUT}" "${ICON_BACKGROUND}" 
+fi
+
+if [ ! -f "$ICON_MONOCHROME_INPUT" ]; then 
+    echo "  icon-monochrome: using foreground icon"
+    cp -f "${ICON_FOREGROUND}" "${ICON_MONOCHROME}" 
+else 
+    echo "  icon-monochrome: $ICON_MONOCHROME_INPUT"
+    cp -f "${ICON_MONOCHROME_INPUT}" "${ICON_MONOCHROME}" 
+fi
+
+if [ -f "$ICON_ALT" ]; then 
+    echo "  icon-alt: ${ICON_ALT}"
+fi
+
+if [ ! -f "$ICON_INPUT" ]; then 
+    echo "  icon: layered from foreground and background"
+    layer_images "${ICON_FOREGROUND}" "${ICON_BACKGROUND}" "${ICON}" 
+else 
+    echo "  icon: $ICON_INPUT"
+    cp -f "${ICON_INPUT}" "${ICON}" 
+fi
+
+if [ -n "$ICON_DARK" ] && [ ! -f "$ICON_DARK" ]; then 
+    echo "  icon-dark: creating from layers"
+    layer_images "${ICON_FOREGROUND}" "${ICON_BACKGROUND}" "${ICON_DARK}" 
+else 
+    echo "  icon-dark: $ICON_DARK"
+fi
+
+echo "  launch: $LAUNCH"
+
+
+
+# iOS Asset Catalogue generation
+# -------------------------------------------
+
+generate_appicon_sizes () {
+    local APPICONSET=$1
+    local ICONSRC=$2
+    local ICONNAME=$3
+
+    echo "   - Generating app icon: ${ICONNAME}"
+    
+    $CONVERT "${ICONSRC}" -resize 40x40   "${APPICONSET}/${ICONNAME}-20x20@2x.png"
+    $CONVERT "${ICONSRC}" -resize 60x60   "${APPICONSET}/${ICONNAME}-20x20@3x.png"
+    $CONVERT "${ICONSRC}" -resize 58x58   "${APPICONSET}/${ICONNAME}-29x29@2x.png"
+    $CONVERT "${ICONSRC}" -resize 136x136 "${APPICONSET}/${ICONNAME}-68x68@2x.png"
+    $CONVERT "${ICONSRC}" -resize 87x87   "${APPICONSET}/${ICONNAME}-29x29@3x.png"
+    $CONVERT "${ICONSRC}" -resize 80x80   "${APPICONSET}/${ICONNAME}-40x40@2x.png"
+    $CONVERT "${ICONSRC}" -resize 120x120 "${APPICONSET}/${ICONNAME}-40x40@3x.png"
+    $CONVERT "${ICONSRC}" -resize 180x180 "${APPICONSET}/${ICONNAME}-60x60@3x.png"
+    $CONVERT "${ICONSRC}" -resize 128x128 "${APPICONSET}/${ICONNAME}-64x64@2x.png"
+    $CONVERT "${ICONSRC}" -resize 192x192 "${APPICONSET}/${ICONNAME}-64x64@3x.png"
+    $CONVERT "${ICONSRC}" -resize 114x114 "${APPICONSET}/${ICONNAME}-38x38@3x.png"
+    $CONVERT "${ICONSRC}" -resize 76x76   "${APPICONSET}/${ICONNAME}-76x76@1x.png"
+    $CONVERT "${ICONSRC}" -resize 152x152 "${APPICONSET}/${ICONNAME}-76x76@2x.png"
+    $CONVERT "${ICONSRC}" -resize 167x167 "${APPICONSET}/${ICONNAME}-83.5x83.5@2x.png"
+    $CONVERT "${ICONSRC}" -resize 1024x1024 "${APPICONSET}/${ICONNAME}-1024x1024@1x.png"
+}
+
+generate_appicon () {
+    local ICONSRC=$1
+    local ICONDARKSRC=$2
+    local ICONTINTSRC=$3
+    local ICONNAME=$4
+    local APPICONSETSRC="${ASSETSSRCDIR}/Assets.xcassets/AppIcon.appiconset"
+    local APPICONSET="${ASSETSWORKING}/Assets.xcassets/${ICONNAME}.appiconset"
+
+    echo " - Assets.car: ${ICONNAME} generation"
+
+    if [ ! -d "${APPICONSET}" ]; then 
+        echo "   - generate_appicon: ${ICONNAME}.appiconset doesn't exist - creating new icon set"
+        mkdir -p "${APPICONSET}"
+    fi
+
+    cp -Rf "${ASSETSSRCDIR}/Assets.xcassets/AppIcon.appiconset/Contents.json" "${APPICONSET}/Contents.json"
+    sed -i.bak "s/Icon-App/${ICONNAME}/" "${APPICONSET}/Contents.json"
+
+    rm -f ${APPICONSET}/Icon-App*
+    rm -f ${APPICONSET}/Contents.json.bak
+
+    generate_appicon_sizes "${APPICONSET}" "${ICONSRC}" "${ICONNAME}"
+    if [ -f "$ICONDARKSRC" ]; then 
+        generate_appicon_sizes "${APPICONSET}" "${ICONDARKSRC}" "${ICONNAME}-Dark"
+    fi 
+    if [ -f "$ICONTINTSRC" ]; then 
+        generate_appicon_sizes "${APPICONSET}" "${ICONTINTSRC}" "${ICONNAME}-Tint"
+    fi
+
+    echo " - Assets.car: ${ICONNAME} created"
+}
+
+# Function to generate iOS Assets.car file
+generate_ios_assets_car() {
+    local icon="$1"
+    local icon_dark="$2"
+    local icon_monochrome="$3"
+    local icon_alt="$4"
+    local launch="$5"
+    local output_dir="$6"
+    local tmp_dir="$7"
+    local assets_working="$8"
+    
+    if [[ "$OSTYPE" != "darwin"* ]]; then
+        echo "Warning: Not running on macOS - skipping Assets.car generation"
+        return 1
+    fi
+    
+    echo "Generating Assets.car"
+    echo " - Assets.car: Icons"
+
+    # Generate main app icon
+    generate_appicon "${icon}" "${icon_dark}" "${icon_monochrome}" "AppIcon" 
+
+    # If alternate icon is provided, generate it
+    if [ -n "$icon_alt" ] && [ -f "$icon_alt" ]; then 
+        generate_appicon "${icon_alt}" "${icon_alt}" "${icon_alt}" "AlternateIcon" 
+    fi
+
+    echo " - Assets.car: launch screen"
+    LAUNCHSET=$assets_working/Assets.xcassets/LaunchImage.imageset
+    if [ -f "${launch}" ]; then
+        echo "   - using supplied launch image"
+        magick ${launch} -resize 2400x2400 "${LAUNCHSET}/LaunchImage.png" 2>/dev/null
+    elif [ -f "${icon}" ] && [ -f "${icon_background}" ]; then 
+        echo "   - layering launch image from foreground and background"
+        magick "${icon_background}" -resize "2400x2400^" -gravity center -extent "2400x2400" "${tmp_dir}/launch_bg.png"
+        layer_images "${icon}" "${tmp_dir}/launch_bg.png" "${LAUNCHSET}/LaunchImage.png" 
+        rm -f "${tmp_dir}/launch_bg.png"
+    else 
+        magick ${icon} -background ${FILL_COLOUR} -gravity center -resize 1024x1024 -extent 2400x2400 "${LAUNCHSET}/LaunchImage.png"
+    fi
+
+    echo " - Assets.car: actool"
+    
+    # Force xcrun to use our own derived data directory
+    export DERIVED_DATA_DIR="${tmp_dir}/DerivedData"
+    mkdir -p "${DERIVED_DATA_DIR}"
+    
+    xcrun actool "${assets_working}/Assets.xcassets" --compile "${tmp_dir}" \
+        --platform iphoneos \
+        --minimum-deployment-target 12.0 \
+        --include-all-app-icons \
+        --app-icon AppIcon \
+        --output-partial-info-plist "${tmp_dir}/partial.plist" 1>/dev/null
+
+    # Check various locations for the Assets.car file
+    if [ -f "${tmp_dir}/Assets.car" ]; then
+        echo " - Assets.car: found in expected location"
+        cp -Rf "${tmp_dir}/Assets.car" "${output_dir}/."
+    elif [ -d "$DERIVED_DATA_DIR" ]; then
+        echo " - Assets.car: checking in DERIVED_DATA_DIR"
+        ASSETS_CAR_PATH=$(find "$DERIVED_DATA_DIR" -name "Assets.car" -type f -print -quit)
+        if [ -n "$ASSETS_CAR_PATH" ]; then
+            echo " - Assets.car: found at $ASSETS_CAR_PATH"
+            cp -Rf "$ASSETS_CAR_PATH" "${output_dir}/."
+        else
+            echo "Warning: Assets.car not found in DerivedData"
+            return 1
+        fi
+    else
+        echo "Error: Assets.car not found after generation"
+        return 1
+    fi
+
+    cp -Rf "${assets_working}/LaunchScreen.storyboardc" "${output_dir}/."
+    echo " - Assets.car: complete"
+    return 0
+}
+
+generate_ios_assets_car \
+    "${ICON}" \
+    "${ICON_DARK}" \
+    "${ICON_MONOCHROME}" \
+    "${ICON_ALT}" \
+    "${LAUNCH}" \
+    "${OUTPUTDIR}" \
+    "${TMPDIR}" \
+    "${ASSETSWORKING}"
+
+
+
+# Android icons
+# -------------------------------------------
+
+echo "Generating Android Resources"
+
+generate_circular_icon() {
+    local input=$1
+    local output=$2
+    local size=$3
+    
+    # Calculate radius to be 1 pixel smaller than half the image size
+    # This creates a 2-pixel border around the circle (1px on each side)
+    local radius=$(echo "${size} / 2 - 1" | bc)
+    local center=$(echo "${size} / 2" | bc)
+    local center_radius=$(echo "${center} + ${radius}" | bc)
+
+    # Create a circular mask of the appropriate size with the reduced radius
+    magick -size ${size}x${size} xc:black -fill white -draw "circle ${center},${center} ${center},${center_radius}" "${TMPDIR}/circle_mask.png"
+    
+    # Apply the mask to create a circular icon
+    magick "$input" -resize ${size}x${size} "${TMPDIR}/temp_resize.png"
+    magick "${TMPDIR}/temp_resize.png" "${TMPDIR}/circle_mask.png" -alpha Off -compose CopyOpacity -composite "$output"
+    
+    # # Clean up temporary files
+    rm -f "${TMPDIR}/circle_mask.png" "${TMPDIR}/temp_resize.png"
+}
+
+generate_resource() {
+    local foreground=$1
+    local background=$2
+    local monochrome=$3
+    local output_dir=$4
+    local size=$5
+    local scale=$6
+    
+    local scale_size=$(echo "$size * $scale" | bc)
+    local output_file="${output_dir}/drawable-${prefix}/icon.png"
+    mkdir -p "${output_dir}" 2>/dev/null
+    
+    $CONVERT "${foreground}" -resize ${scale_size}x${scale_size}^ "${output_dir}/icon_foreground.png"
+    $CONVERT "${background}" -resize ${scale_size}x${scale_size}^ "${output_dir}/icon_background.png"
+    $CONVERT "${monochrome}" -resize ${scale_size}x${scale_size}^ "${output_dir}/icon_monochrome.png"
+
+    magick composite -gravity "center" -geometry "+0+0" "${foreground}" "${background}" miff:- | magick miff:- -resize ${size}x${size} "${output_dir}/icon.png"
+    
+    generate_circular_icon "${output_dir}/icon.png" "${output_dir}/icon_round.png" ${size}
+}
+
+mkdir -p ${OUTPUTDIR}/res 2>/dev/null
+cp -Rf ${ASSETSSRCDIR}/res/* ${OUTPUTDIR}/res
+
+icon_configs=(
+    "mdpi:48:2.25"
+    "hdpi:72:2.25"
+    "xhdpi:96:2.25"
+    "xxhdpi:144:2.25"
+    "xxxhdpi:192:2.25"
+)
+
+for config in "${icon_configs[@]}"; do
+    # Split the config into components
+    IFS=':' read -r density size scale <<< "$config"
+    
+    echo " - Processing density: $density, size: ${size}x${size}, scale: $scale"
+    
+    generate_resource "${ICON_FOREGROUND}" "${ICON_BACKGROUND}" "${ICON_MONOCHROME}" "${OUTPUTDIR}/res/mipmap-${density}" "${size}" "${scale}"
+done
+
+
+
+# App Icons
+# -------------------------------------------
+echo "Generating classic AIR icons"
+# Function to generate icons in various sizes
+generate_icon_sizes() {
+    local source_icon=$1
+    local output_dir=$2
+    local prefix=$3
+    local sizes=(
+        16 20 29 32 36 40 48 57 58 60 64
+        72 76 80 87 114 120 128 144 152 167
+        180 256 512 1024
+    )
+    
+    echo "-----------------------------------"
+    echo "<icon>"
+    for size in "${sizes[@]}"; do
+        local output_file="${output_dir}/${prefix}${size}x${size}.png"
+        $CONVERT "$source_icon" -resize ${size}x${size} "$output_file"
+        echo "  <image${size}x${size}>icons/${prefix}${size}x${size}.png</image${size}x${size}>"
+    done
+    echo "</icon>"
+    echo "-----------------------------------"
+}
+ICONDIR=${OUTPUTDIR}/icons
+mkdir -p "${ICONDIR}"
+
+generate_icon_sizes "${ICON}" "${ICONDIR}" "icon"
+
+
+echo "========== COMPLETE =============="
