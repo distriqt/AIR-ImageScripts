@@ -408,8 +408,8 @@ generate_ios_assets_car() {
         magick "${launch}" -resize 2400x2400 "${LAUNCHSET}/LaunchImage.png" 2>/dev/null || return 1
     elif [ -f "${icon}" ] && [ -f "${ICON_BACKGROUND}" ]; then 
         echo "   - layering launch image from foreground and background"
-        magick "${ICON_BACKGROUND}" -resize "2400x2400^" -gravity center -extent "2400x2400" "${tmp_dir}/launch_bg.png"
-        layer_images "${icon}" "${tmp_dir}/launch_bg.png" "${LAUNCHSET}/LaunchImage.png" 
+        magick "${ICON_BACKGROUND}" -resize "2400x2400^" -gravity center -extent "2400x2400" "${tmp_dir}/launch_bg.png" || return 1
+        layer_images "${icon}" "${tmp_dir}/launch_bg.png" "${LAUNCHSET}/LaunchImage.png" || return 1
         rm -f "${tmp_dir}/launch_bg.png"
     else 
         magick "${icon}" -background "${FILL_COLOUR}" -gravity center -resize 1024x1024 -extent 2400x2400 "${LAUNCHSET}/LaunchImage.png" || return 1
