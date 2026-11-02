@@ -221,7 +221,7 @@ mkdir "${TMPDIR}" 2>/dev/null
 
 ICON=${TMPDIR}/icon.png
 ICON_BACKGROUND=${TMPDIR}/icon-background.png
-BACKGROUND_COLOR="#000000"
+BACKGROUND_COLOR=${FILL_COLOUR}
 ICON_MONOCHROME=${TMPDIR}/icon-monochrome.png
 
 mkdir -p "${ASSETSSRCDIR}"  2>/dev/null
