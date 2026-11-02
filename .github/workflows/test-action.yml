@@ -1,0 +1,39 @@
+name: Test Icon Action
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ImageMagick
+        run: command -v magick >/dev/null || brew install imagemagick
+      - name: Test generator
+        run: bash tests/test_generateIcons.sh
+      - name: Test action steps and input validation
+        run: ruby tests/test_action.rb
+      - name: Test local action with release template download
+        id: icons
+        uses: ./
+        with:
+          source-dir: example
+          output-dir: '${{ runner.temp }}/action smoke output'
+      - name: Check action output
+        env:
+          OUTPUT_DIR: ${{ steps.icons.outputs.output-dir }}
+        run: |
+          test -s "$OUTPUT_DIR/Assets.car"
+          test -s "$OUTPUT_DIR/LaunchScreen.storyboardc/Info.plist"
+          test -s "$OUTPUT_DIR/icons/icon1024x1024.png"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-generated-icons
+          path: ${{ steps.icons.outputs.output-dir }}
+          if-no-files-found: error

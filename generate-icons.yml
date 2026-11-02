@@ -1,0 +1,80 @@
+# Place this workflow at .github/workflows/generate-icons.yml in your repository.
+name: Generate App Icons
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_folder:
+        description: Application folder in icons-src (empty selects all folders)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_ROOT: icons-src
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.apps.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Discover application folders
+        id: apps
+        env:
+          APP_FOLDER: ${{ inputs.app_folder }}
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = path.resolve(process.env.GITHUB_WORKSPACE, process.env.SOURCE_ROOT);
+          if (!fs.statSync(root).isDirectory()) {
+            throw new Error('SOURCE_ROOT must be a directory');
+          }
+          const selected = process.env.APP_FOLDER;
+          const names = selected ? [selected] : fs.readdirSync(root).sort().filter(name => {
+            const entry = fs.lstatSync(path.join(root, name));
+            return !name.startsWith('.') && entry.isDirectory() && !entry.isSymbolicLink();
+          });
+          if (names.length === 0) throw new Error('No application folders found');
+          if (names.length > 256) throw new Error('GitHub matrices support at most 256 jobs');
+          const include = names.map((name, index) => {
+            if (name.startsWith('.') || /[\/\\\r\n]/.test(name)) {
+              throw new Error('Application name must be an immediate, nonhidden child folder');
+            }
+            const source = path.join(root, name);
+            const entry = fs.lstatSync(source);
+            if (!entry.isDirectory() || entry.isSymbolicLink()) {
+              throw new Error('Application source must be a directory, not a symlink');
+            }
+            return { app: name, source: path.relative(process.env.GITHUB_WORKSPACE, source), artifact: `icons-${index + 1}` };
+          });
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ include })}\n`);
+          NODE
+
+  generate:
+    needs: discover
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    name: Generate (${{ matrix.app }})
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate icons
+        id: icons
+        uses: distriqt/AIR-ImageScripts@v2
+        with:
+          source-dir: ${{ matrix.source }}
+          output-dir: icons-out/${{ matrix.app }}
+      - name: Upload generated assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ steps.icons.outputs.output-dir }}
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,139 @@
+name: Generate AIR App Icons
+description: Generate AIR iOS and Android icons and launch assets on macOS with Xcode.
+author: distriqt
+branding:
+  icon: image
+  color: green
+
+inputs:
+  source-dir:
+    description: Source image directory, relative to the workspace or absolute.
+    required: true
+  output-dir:
+    description: Output directory, relative to the workspace or absolute.
+    default: icons-out
+  foreground:
+    description: Foreground image path relative to source-dir.
+    default: icon-foreground.png
+  background:
+    description: Background image path relative to source-dir.
+    default: icon-background.png
+  monochrome:
+    description: Monochrome image path relative to source-dir.
+    default: icon-monochrome.png
+  icon:
+    description: Main icon image path relative to source-dir.
+    default: icon.png
+  dark:
+    description: Dark icon image path relative to source-dir.
+    default: icon-dark.png
+  alt:
+    description: Optional alternate icon image path relative to source-dir.
+    default: ''
+  launch:
+    description: Launch image path relative to source-dir.
+    default: launch.png
+  color:
+    description: Fallback background color accepted by ImageMagick.
+    default: none
+
+outputs:
+  output-dir:
+    description: Absolute path to the generated output directory.
+    value: ${{ steps.generate.outputs.output-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare dependencies
+      shell: bash
+      env:
+        RUNNER_OS: ${{ runner.os }}
+        HOMEBREW_NO_AUTO_UPDATE: '1'
+      run: |
+        set -euo pipefail
+        if [[ "$RUNNER_OS" != macOS ]]; then
+          echo "::error::This action requires macOS with full Xcode installed."
+          exit 1
+        fi
+        if ! command -v magick >/dev/null 2>&1; then
+          brew install imagemagick
+        fi
+        if ! magick -version | grep -Eq 'ImageMagick ([7-9]|[1-9][0-9]+)\.'; then
+          echo "::error::ImageMagick 7 or newer is required."
+          exit 1
+        fi
+        for dependency in curl unzip bc readlink; do
+          command -v "$dependency" >/dev/null
+        done
+        readlink -f "$GITHUB_WORKSPACE" >/dev/null
+        xcode-select --print-path
+        xcrun --find actool
+        xcrun --sdk iphoneos --show-sdk-path
+
+    - name: Generate and validate assets
+      id: generate
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        SOURCE_DIR: ${{ inputs.source-dir }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+        FOREGROUND: ${{ inputs.foreground }}
+        BACKGROUND: ${{ inputs.background }}
+        MONOCHROME: ${{ inputs.monochrome }}
+        ICON: ${{ inputs.icon }}
+        DARK: ${{ inputs.dark }}
+        ALT: ${{ inputs.alt }}
+        LAUNCH: ${{ inputs.launch }}
+        COLOR: ${{ inputs.color }}
+      run: |
+        set -euo pipefail
+        cd "$GITHUB_WORKSPACE"
+        if [[ -z "$SOURCE_DIR" || -z "$OUTPUT_DIR" ||
+              "$SOURCE_DIR" == *$'\n'* || "$SOURCE_DIR" == *$'\r'* ||
+              "$OUTPUT_DIR" == *$'\n'* || "$OUTPUT_DIR" == *$'\r'* ]]; then
+          echo "::error::Source and output directories must be nonempty single-line paths."
+          exit 1
+        fi
+        if [[ ! -d "$SOURCE_DIR" ]]; then
+          echo "::error::Source image directory does not exist."
+          exit 1
+        fi
+        source_dir=$(cd "$SOURCE_DIR" && pwd -P)
+        mkdir -p "$OUTPUT_DIR"
+        output_dir=$(cd "$OUTPUT_DIR" && pwd -P)
+        if [[ "$output_dir/" == "$source_dir/"* || "$source_dir/" == "$output_dir/"* ]]; then
+          echo "::error::Source and output directories must not overlap."
+          exit 1
+        fi
+
+        staging_dir=$(mktemp -d "$RUNNER_TEMP/air-icons.XXXXXX")
+        trap 'rm -rf "$staging_dir"' EXIT
+        args=(--source "$source_dir" --output "$staging_dir")
+        options=(foreground background monochrome icon dark alt launch color)
+        values=("$FOREGROUND" "$BACKGROUND" "$MONOCHROME" "$ICON" "$DARK" "$ALT" "$LAUNCH" "$COLOR")
+        for index in "${!options[@]}"; do
+          if [[ -n "${values[$index]}" ]]; then
+            args+=("--${options[$index]}" "${values[$index]}")
+          fi
+        done
+        bash "$ACTION_PATH/generateIcons" "${args[@]}"
+
+        required_files=(
+          Assets.car
+          LaunchScreen.storyboardc/Info.plist
+          icons/icon1024x1024.png
+          res/mipmap-mdpi/icon.png
+          res/mipmap-anydpi-v26/icon.xml
+          res/mipmap-anydpi-v26/icon_round.xml
+        )
+        for file in "${required_files[@]}"; do
+          if [[ ! -s "$staging_dir/$file" ]]; then
+            echo "::error::Generation did not produce required file: $file"
+            exit 1
+          fi
+        done
+        [[ $(magick identify -format '%wx%h' "$staging_dir/icons/icon1024x1024.png") == 1024x1024 ]]
+        [[ $(magick identify -format '%wx%h' "$staging_dir/res/mipmap-mdpi/icon.png") == 48x48 ]]
+        cp -R "$staging_dir/." "$output_dir/"
+        printf 'output-dir=%s\n' "$output_dir" >> "$GITHUB_OUTPUT"

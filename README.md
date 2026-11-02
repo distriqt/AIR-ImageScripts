@@ -144,6 +144,140 @@ generateIcons -s config/icons -o src
 
 
 
+## GitHub Action
+
+Use the composite action on a macOS runner with full Xcode installed. It installs
+ImageMagick if needed and generates iOS and Android resources for one application.
+Check out your repository first so the action can access your source images.
+
+```yaml
+name: Generate App Icons
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  icons:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: distriqt/AIR-ImageScripts@v2
+        id: icons
+        with:
+          source-dir: icons-src/my-app
+          output-dir: icons-out/my-app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: my-app-icons
+          path: ${{ steps.icons.outputs.output-dir }}
+          if-no-files-found: error
+```
+
+The action runs its bundled script, not a separately downloaded executable.
+
+### Inputs And Outputs
+
+| Input | Default | Description |
+| --- | --- | --- |
+| `source-dir` | Required | One application's source image directory |
+| `output-dir` | `icons-out` | Directory to receive generated resources |
+| `foreground` | `icon-foreground.png` | Foreground image |
+| `background` | `icon-background.png` | Background image |
+| `monochrome` | `icon-monochrome.png` | Monochrome image |
+| `icon` | `icon.png` | Main icon override |
+| `dark` | `icon-dark.png` | Dark icon image |
+| `alt` | Empty | Optional alternate icon |
+| `launch` | `launch.png` | Optional launch image |
+| `color` | `none` | Fallback background color |
+
+Directory inputs are relative to the repository workspace, or absolute. Source
+and output directories must not overlap. Image paths are relative to `source-dir`;
+missing optional images use the generator's existing fallbacks. Empty optional
+inputs retain the script defaults. The source directory must be writable: the
+generator caches templates and creates temporary files there, and may create a
+missing dark icon. Avoid concurrent calls using the same source directory.
+
+The `output-dir` output is the absolute destination path, available only after
+successful generation and validation. Generated files are copied into that
+directory; unrelated existing files are not removed. Generation uses fresh staging
+files so old output cannot hide missing resources.
+
+The script downloads templates from the fixed `v2.0` release and reuses them from
+`<source-dir>/.air-icon-generation-assets-v2/`. Network access is required on a
+cache miss. Pinning the action ref pins the script, but not the contents of that
+remote release asset. No repository write permission or secret is required, and
+the action does not upload artifacts or commit files itself.
+
+### Multiple Applications
+
+Use a matrix with a separate source directory, destination, and artifact per app:
+
+```yaml
+jobs:
+  icons:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        app: [my-app, another-app]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: distriqt/AIR-ImageScripts@v2
+        id: icons
+        with:
+          source-dir: icons-src/${{ matrix.app }}
+          output-dir: icons-out/${{ matrix.app }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: icons-${{ matrix.app }}
+          path: ${{ steps.icons.outputs.output-dir }}
+          if-no-files-found: error
+```
+
+The complete [manual workflow example](generate-icons.yml) discovers application folders
+and accepts an optional single application name. Place it in your repository at
+`.github/workflows/generate-icons.yml` and adjust `SOURCE_ROOT` if necessary.
+
+### Real-World Example
+
+Suppose your repository contains a shopping application and a delivery application,
+each with its own source images:
+
+```text
+icons-src/
+  shopping-app/
+    icon-foreground.png
+    icon-background.png
+    icon-monochrome.png
+    icon-dark.png
+  delivery-app/
+    icon-foreground.png
+    icon-background.png
+    icon-monochrome.png
+    icon-dark.png
+```
+
+Place the [manual workflow example](generate-icons.yml) at `.github/workflows/generate-icons.yml` in your repository. 
+
+#### Generate Both Applications
+
+Open **Actions > Generate App Icons > Run workflow** and leave `app_folder` empty.
+The discovery job finds both folders and starts a separate macOS job for each:
+
+| Job | Source | Output | Downloadable artifact |
+| --- | --- | --- | --- |
+| Generate (delivery-app) | `icons-src/delivery-app` | `icons-out/delivery-app` | `icons-1` |
+| Generate (shopping-app) | `icons-src/shopping-app` | `icons-out/shopping-app` | `icons-2` |
+
+Download the artifacts from the workflow run's **Artifacts** section. Each contains
+that application's `Assets.car`, launch storyboard, classic icons, and Android
+resources. Artifact numbers follow alphabetical folder order for that run; they
+are not permanent application identifiers.
+
+#### Generate Only One Application
+
+After updating the shopping application's images, run the workflow with
+`app_folder` set to `shopping-app`. Only that application's assets are generated,
+and the result is uploaded as `icons-1`. The delivery application is not processed.
+
 ## Outputs
 
 Currently this script outputs the following icons and default images:
