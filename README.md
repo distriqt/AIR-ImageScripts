@@ -244,6 +244,7 @@ Add the following to your application descriptor to pick up these icon image nam
     </icon>
 ```
 
+#### iOS 
 
 Add the following to your iOS info additions for launch storyboard support:
 
@@ -252,12 +253,32 @@ Add the following to your iOS info additions for launch storyboard support:
 <string>LaunchScreen</string>
 ```
 
+
+#### Android
+
 Add the following to your app descriptor to specify the android resources:
 
 ```xml
 <resdir>res</resdir>
 ```
 
+If you want to enable "round" icons you need to add the `android:roundIcon` tag to your `application` node in the manifest additions:
+
+```xml
+<manifest android:installLocation="auto">
+
+    <uses-sdk android:targetSdkVersion="28" />
+
+    <!-- PERMISSIONS ETC -->
+
+    <application 
+        ...
+        android:roundIcon="@mipmap/icon_round" 
+        ...
+    >
+```
+
+> You must only use the `android:roundIcon` attribute if you require a different icon asset for circular masks, if for example the branding of your logo relies on a circular shape. Generally the adaptive icon is sufficent and you don't need to add the different round icon attribute.
 
 
 ## Version 1 - `generate.sh`
