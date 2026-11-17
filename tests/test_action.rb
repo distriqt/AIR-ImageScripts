@@ -27,7 +27,7 @@ Dir.mktmpdir('air-action-test') do |temporary|
   FileUtils.cp_r(Dir.glob(File.join(repo, 'example', '*.png')), source)
   assets = File.join(source, '.air-icon-generation-assets-51.5', 'src')
   FileUtils.mkdir_p(assets)
-  FileUtils.cp_r(File.join(repo, 'src', 'generate-assets', '.'), assets)
+  FileUtils.cp_r(File.join(repo, 'src', 'generate-assets-51.5', '.'), assets)
   legacy_assets = File.join(source, '.air-icon-generation-assets-v2', 'src')
   FileUtils.mkdir_p(legacy_assets)
   FileUtils.cp_r(File.join(repo, 'src', 'generate-assets-legacy', '.'), legacy_assets)
