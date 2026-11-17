@@ -1,0 +1,77 @@
+name: Publish Release Templates
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-templates-${{ github.event.release.id }}
+  cancel-in-progress: false
+
+jobs:
+  templates:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - asset-version: '51.5'
+            archive: generate-assets-air-51.5.zip
+          - asset-version: legacy
+            archive: generate-assets-v2.zip
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Build template archive
+        env:
+          ASSET_VERSION: ${{ matrix.asset-version }}
+        run: bash src/generate-assets-zip.sh --asset-version "$ASSET_VERSION"
+
+      - name: Validate template archive
+        shell: bash
+        env:
+          ARCHIVE: ${{ matrix.archive }}
+          ASSET_VERSION: ${{ matrix.asset-version }}
+        run: |
+          set -euo pipefail
+          test -s "$ARCHIVE"
+          unzip -tq "$ARCHIVE"
+          entries=$(unzip -Z1 "$ARCHIVE")
+          for file in \
+            Assets.xcassets/Contents.json \
+            LaunchScreen.storyboardc/Info.plist \
+            res/mipmap-anydpi-v26/icon.xml \
+            res/mipmap-anydpi-v26/icon_round.xml; do
+            grep -Fx "$file" <<< "$entries" >/dev/null
+          done
+          if [[ "$ASSET_VERSION" == 51.5 ]]; then
+            grep -Fx 'Assets.xcassets/air_splash.imageset/Contents.json' <<< "$entries"
+            if grep -Eq '^Assets.xcassets/splash_(landscape|portrait)\.imageset/' <<< "$entries"; then
+              echo 'Legacy splash sets found in AIR 51.5 archive' >&2
+              exit 1
+            fi
+          else
+            grep -Fx 'Assets.xcassets/splash_landscape.imageset/Contents.json' <<< "$entries"
+            grep -Fx 'Assets.xcassets/splash_portrait.imageset/Contents.json' <<< "$entries"
+            if grep -q '^Assets.xcassets/air_splash\.imageset/' <<< "$entries"; then
+              echo 'AIR 51.5 splash set found in legacy archive' >&2
+              exit 1
+            fi
+          fi
+
+      - name: Attach templates to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: gh release upload "$RELEASE_TAG" "$ARCHIVE"

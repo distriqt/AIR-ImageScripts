@@ -12,6 +12,9 @@ inputs:
   output-dir:
     description: Output directory, relative to the workspace or absolute.
     default: icons-out
+  asset-version:
+    description: 'AIR asset format: 51.5 for AIR 51.5+, or legacy for earlier SDKs.'
+    default: '51.5'
   foreground:
     description: Foreground image path relative to source-dir.
     default: icon-foreground.png
@@ -78,6 +81,7 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
         SOURCE_DIR: ${{ inputs.source-dir }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
+        ASSET_VERSION: ${{ inputs.asset-version }}
         FOREGROUND: ${{ inputs.foreground }}
         BACKGROUND: ${{ inputs.background }}
         MONOCHROME: ${{ inputs.monochrome }}
@@ -109,7 +113,7 @@ runs:
 
         staging_dir=$(mktemp -d "$RUNNER_TEMP/air-icons.XXXXXX")
         trap 'rm -rf "$staging_dir"' EXIT
-        args=(--source "$source_dir" --output "$staging_dir")
+        args=(--source "$source_dir" --output "$staging_dir" --asset-version "$ASSET_VERSION")
         options=(foreground background monochrome icon dark alt launch color)
         values=("$FOREGROUND" "$BACKGROUND" "$MONOCHROME" "$ICON" "$DARK" "$ALT" "$LAUNCH" "$COLOR")
         for index in "${!options[@]}"; do

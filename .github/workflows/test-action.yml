@@ -16,12 +16,18 @@ jobs:
       - name: Install ImageMagick
         run: command -v magick >/dev/null || brew install imagemagick
       - name: Prepare template fixtures
-        run: bash -e src/generate-assets-zip.sh
+        run: |
+          bash src/generate-assets-zip.sh
+          bash src/generate-assets-zip.sh --asset-version legacy
       - name: Test generator
         run: bash tests/test_generateIcons.sh
       - name: Test action steps and input validation
         run: ruby tests/test_action.rb
-      - name: Test local action with release template download
+      - name: Seed locally built templates
+        run: |
+          mkdir -p example/.air-icon-generation-assets-51.5/src
+          cp -R src/generate-assets/. example/.air-icon-generation-assets-51.5/src/
+      - name: Test local action with AIR 51.5 templates
         id: icons
         uses: ./
         with:

@@ -8,7 +8,7 @@ SAMPLE_DIR=${REPO_DIR}/example
 TEMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/air-image-scripts-test.XXXXXX")
 SOURCE_DIR="${TEMP_ROOT}/source images"
 OUTPUT_DIR="${TEMP_ROOT}/output images"
-ASSET_SOURCE=${SOURCE_DIR}/.air-icon-generation-assets-v2/src
+ASSET_SOURCE=${SOURCE_DIR}/.air-icon-generation-assets-51.5/src
 
 trap 'rm -rf "${TEMP_ROOT}"' EXIT
 
@@ -37,7 +37,10 @@ cp "${SAMPLE_DIR}/icon-foreground.png" \
     "${SAMPLE_DIR}/icon-dark.png" \
     "${SAMPLE_DIR}/launch.png" \
     "$SOURCE_DIR/"
-cp -R "${REPO_DIR}/src/generate-assets/." "$ASSET_SOURCE/"
+cp -R "${REPO_DIR}/src/generate-assets-51.5/." "$ASSET_SOURCE/"
+LEGACY_ASSET_SOURCE=${SOURCE_DIR}/.air-icon-generation-assets-v2/src
+mkdir -p "$LEGACY_ASSET_SOURCE"
+cp -R "${REPO_DIR}/src/generate-assets-legacy/." "$LEGACY_ASSET_SOURCE/"
 
 run_generator() {
     local log_file=$1
@@ -59,7 +62,7 @@ assert_dimensions "${OUTPUT_DIR}/res/mipmap-mdpi/icon.png" "48x48"
 if [[ "${OSTYPE}" == "darwin"* ]]; then
     assert_file "${OUTPUT_DIR}/Assets.car"
     assert_file "${OUTPUT_DIR}/LaunchScreen.storyboardc/Info.plist"
-    FALLBACK_IMAGE=${SOURCE_DIR}/.air-icon-generation-assets-v2/build/Assets.xcassets/LaunchImage.imageset/LaunchImage.png
+    FALLBACK_IMAGE=${SOURCE_DIR}/.air-icon-generation-assets-51.5/build/Assets.xcassets/LaunchImage.imageset/LaunchImage.png
     assert_file "$FALLBACK_IMAGE"
     assert_dimensions "$FALLBACK_IMAGE" "2400x2400"
 
@@ -74,6 +77,21 @@ if ! grep -q "using supplied launch image" "${TEMP_ROOT}/supplied-launch.log"; t
     fail "Expected supplied launch image path to be used"
 fi
 
+assert_file "$ASSET_SOURCE/Assets.xcassets/air_splash.imageset/Contents.json"
+[ ! -e "$ASSET_SOURCE/Assets.xcassets/splash_portrait.imageset" ] || fail "Default assets include legacy splash"
+run_generator "${TEMP_ROOT}/legacy.log" --asset-version legacy
+assert_file "$LEGACY_ASSET_SOURCE/Assets.xcassets/splash_portrait.imageset/Contents.json"
+assert_file "$LEGACY_ASSET_SOURCE/Assets.xcassets/splash_landscape.imageset/Contents.json"
+[ ! -e "$LEGACY_ASSET_SOURCE/Assets.xcassets/air_splash.imageset" ] || fail "Legacy assets include new splash"
+if [[ "${OSTYPE}" == "darwin"* ]]; then
+    assert_file "${OUTPUT_DIR}/Assets.car"
+fi
+for version in invalid ''; do
+    if bash "$GENERATOR" --asset-version "$version" >"${TEMP_ROOT}/invalid.log" 2>&1; then
+        fail "Expected invalid asset version to fail"
+    fi
+done
+
 if [[ "${OSTYPE}" == "darwin"* ]]; then
     mkdir -p "${TEMP_ROOT}/failing-tools"
     printf '#!/bin/bash\nexit 1\n' > "${TEMP_ROOT}/failing-tools/xcrun"
@@ -86,4 +104,36 @@ if [[ "${OSTYPE}" == "darwin"* ]]; then
         || fail "Expected an explicit iOS generation error"
 fi
 
-echo "PASS: generateIcons creates expected icons and handles launch-image fallback and input"
+mkdir -p "${TEMP_ROOT}/download-tools"
+printf '%s\n' '#!/bin/bash' \
+    'while [[ $# -gt 0 ]]; do' \
+    '    case "$1" in' \
+    '        --output) output=$2; shift 2 ;;' \
+    '        https://*) printf "%s\n" "$1" > "$DOWNLOAD_LOG"; shift ;;' \
+    '        *) shift ;;' \
+    '    esac' \
+    'done' \
+    'cp "$TEST_ARCHIVE" "$output"' > "${TEMP_ROOT}/download-tools/curl"
+chmod +x "${TEMP_ROOT}/download-tools/curl"
+rm -Rf "${SOURCE_DIR}/.air-icon-generation-assets-51.5" "${SOURCE_DIR}/.air-icon-generation-assets-v2"
+for version in 51.5 legacy; do
+    if [[ "$version" == 51.5 ]]; then
+        archive=generate-assets-air-51.5.zip
+        expected_url="https://github.com/distriqt/AIR-ImageScripts/releases/latest/download/$archive"
+    else
+        archive=generate-assets-v2.zip
+        expected_url="https://github.com/distriqt/AIR-ImageScripts/releases/download/v2.0/$archive"
+    fi
+    PATH="${TEMP_ROOT}/download-tools:${PATH}" TEST_ARCHIVE="${REPO_DIR}/$archive" \
+        DOWNLOAD_LOG="${TEMP_ROOT}/download-url" \
+        run_generator "${TEMP_ROOT}/download-$version.log" --asset-version "$version"
+    [[ $(<"${TEMP_ROOT}/download-url") == "$expected_url" ]] || fail "Wrong download URL for $version"
+done
+
+mkdir -p "$ASSET_SOURCE/Assets.xcassets/splash_landscape.imageset"
+if bash "$GENERATOR" --source "$SOURCE_DIR" --output "$OUTPUT_DIR" >"${TEMP_ROOT}/mixed-cache.log" 2>&1; then
+    fail "Expected mixed template cache to fail"
+fi
+grep -q "Cached templates do not match" "${TEMP_ROOT}/mixed-cache.log" || fail "Expected cache mismatch error"
+
+echo "PASS: both asset formats, downloads, caches, icon sizes, launch images, and iOS failures"

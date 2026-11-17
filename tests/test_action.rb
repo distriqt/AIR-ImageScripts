@@ -25,9 +25,12 @@ Dir.mktmpdir('air-action-test') do |temporary|
   output = File.join(temporary, 'outputs')
   FileUtils.mkdir_p(source)
   FileUtils.cp_r(Dir.glob(File.join(repo, 'example', '*.png')), source)
-  assets = File.join(source, '.air-icon-generation-assets-v2', 'src')
+  assets = File.join(source, '.air-icon-generation-assets-51.5', 'src')
   FileUtils.mkdir_p(assets)
   FileUtils.cp_r(File.join(repo, 'src', 'generate-assets', '.'), assets)
+  legacy_assets = File.join(source, '.air-icon-generation-assets-v2', 'src')
+  FileUtils.mkdir_p(legacy_assets)
+  FileUtils.cp_r(File.join(repo, 'src', 'generate-assets-legacy', '.'), legacy_assets)
   inputs = defaults.merge('source-dir' => source, 'output-dir' => destination)
   context = { 'runner.os' => 'macOS', 'github.action_path' => repo }
   inputs.each { |key, value| context["inputs.#{key}"] = value }
@@ -44,7 +47,14 @@ Dir.mktmpdir('air-action-test') do |temporary|
   abort 'FAIL: normalized output directory' unless File.read(output).strip == expected
   puts 'PASS: action generates validated assets with whitespace and literal shell characters in paths'
 
+  FileUtils.rm_f(output)
+  log, result = run_step(steps.last, context.merge('inputs.asset-version' => 'legacy'), repo, temporary, output)
+  abort "FAIL: legacy action input\n#{log}" unless result.success?
+  abort 'FAIL: legacy action output' unless File.read(output).strip == expected
+  puts 'PASS: action supports legacy assets in the same source directory'
+
   {
+    'invalid asset version' => { 'inputs.asset-version' => 'invalid' },
     'missing source' => { 'inputs.source-dir' => File.join(temporary, 'missing') },
     'overlapping output' => { 'inputs.output-dir' => source },
     'empty output' => { 'inputs.output-dir' => '' },

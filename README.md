@@ -74,6 +74,7 @@ Usage: generateIcons
 Options:
   -s, --source DIR        Source directory (default: current directory)
   -o, --output DIR        Output directory (default: out)
+      --asset-version VER AIR asset format: 51.5 or legacy (default: 51.5)
   -f, --foreground FILE   Icon foreground layer image with transparency (default: icon-foreground.png)
   -b, --background FILE   Icon background layer image (default: icon-background.png)
   -m, --monochrome FILE   Icon monochrome image (default: icon-monochrome.png)
@@ -85,6 +86,21 @@ Options:
   -h, --help              Display this help message
 ```
 
+
+### AIR Asset Versions
+
+By default, the script generates assets for AIR 51.5 and newer, using
+`air_splash.imageset`. For earlier AIR SDKs, select the legacy format, which uses
+`splash_landscape.imageset` and `splash_portrait.imageset` instead:
+
+```bash
+./generateIcons --source config/icons --output out
+./generateIcons --source config/icons --output out-legacy --asset-version legacy
+```
+
+Use `--asset-version 51.5` to select the new format explicitly. The values select
+asset formats, not arbitrary AIR SDK version numbers. Both formats keep the shared
+launch image, storyboard, app icons, and Android resources.
 
 ### Assets
 
@@ -180,6 +196,7 @@ The action runs its bundled script, not a separately downloaded executable.
 | --- | --- | --- |
 | `source-dir` | Required | One application's source image directory |
 | `output-dir` | `icons-out` | Directory to receive generated resources |
+| `asset-version` | `51.5` | `51.5` for AIR 51.5+, or `legacy` for earlier SDKs |
 | `foreground` | `icon-foreground.png` | Foreground image |
 | `background` | `icon-background.png` | Background image |
 | `monochrome` | `icon-monochrome.png` | Monochrome image |
@@ -201,11 +218,17 @@ successful generation and validation. Generated files are copied into that
 directory; unrelated existing files are not removed. Generation uses fresh staging
 files so old output cannot hide missing resources.
 
-The script downloads templates from the fixed `v2.0` release and reuses them from
-`<source-dir>/.air-icon-generation-assets-v2/`. Network access is required on a
-cache miss. Pinning the action ref pins the script, but not the contents of that
-remote release asset. No repository write permission or secret is required, and
-the action does not upload artifacts or commit files itself.
+For legacy AIR applications, add `asset-version: legacy` under the action's `with`
+inputs. The default is `asset-version: '51.5'`.
+
+AIR 51.5 templates download as `generate-assets-air-51.5.zip` from the latest
+published release and cache under `<source-dir>/.air-icon-generation-assets-51.5/`.
+Legacy templates retain `generate-assets-v2.zip` from the fixed `v2.0` release and
+cache under `<source-dir>/.air-icon-generation-assets-v2/`. The caches are separate
+and checked for incompatible splash sets. Network access is required on a cache
+miss. Pinning the action ref does not pin the remotely downloaded templates.
+No repository write permission or secret is required, and the action does not
+upload artifacts or commit files itself.
 
 ### Multiple Applications
 
@@ -277,6 +300,42 @@ are not permanent application identifiers.
 After updating the shopping application's images, run the workflow with
 `app_folder` set to `shopping-app`. Only that application's assets are generated,
 and the result is uploaded as `icons-1`. The delivery application is not processed.
+
+## Release Template Automation
+
+For maintainers, the [release workflow](.github/workflows/release-assets.yml)
+builds two template ZIPs on macOS and attaches them whenever a GitHub release
+is published, including prereleases:
+
+| Archive | AIR compatibility | Splash image sets |
+| --- | --- | --- |
+| `generate-assets-air-51.5.zip` | AIR 51.5+ | `air_splash.imageset` |
+| `generate-assets-v2.zip` | Earlier AIR SDKs | `splash_landscape.imageset`, `splash_portrait.imageset` |
+
+Draft releases do not trigger it. Merge the
+workflow before publishing, and ensure the release tag contains the packaging
+script and its source files.
+
+The build disables code signing and validates the archive before uploading. It
+uses the built-in `GITHUB_TOKEN` with `contents: write`; no signing certificates or
+additional secrets are needed. An existing asset with the same name is not
+overwritten, so rerunning the upload will fail if the ZIP is already attached.
+
+Build either archive locally with:
+
+```bash
+bash src/generate-assets-zip.sh
+bash src/generate-assets-zip.sh --asset-version legacy
+```
+
+Publish a non-prerelease containing `generate-assets-air-51.5.zip` before using the
+new default without cached templates. The latest-release URL does not select
+prereleases, and the ZIP becomes available only after the release workflow finishes.
+Legacy downloads remain pinned to `v2.0`; uploading a legacy ZIP to another release
+does not redirect existing clients.
+Releases created by another workflow using `GITHUB_TOKEN` do not trigger this
+workflow; in that case, build and upload templates in the release-creating workflow
+instead.
 
 ## Outputs
 
