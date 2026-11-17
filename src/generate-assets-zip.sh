@@ -10,10 +10,13 @@ echo ${SCRIPTDIR}
 echo ${PACKAGEDIR}
 echo ${OUTPUTNAME}
 
-mkdir "${PACKAGEDIR}" 2>/dev/null
+mkdir -p "${PACKAGEDIR}"
 
 rm -Rf "${SCRIPTDIR}/ios/Build"
-xcodebuild -quiet -project "${SCRIPTDIR}/ios/AIRAssets.xcodeproj/" -alltargets build
+xcodebuild -quiet -project "${SCRIPTDIR}/ios/AIRAssets.xcodeproj/" -alltargets \
+	-configuration Release \
+	CONFIGURATION_BUILD_DIR="${SCRIPTDIR}/ios/Build/Release-iphoneos" \
+	CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
 
 find "${SCRIPTDIR}" -name .DS_Store -delete
 cp -Rf "${SCRIPTDIR}/ios/AIRAssets/Assets.xcassets" "${PACKAGEDIR}/." 
