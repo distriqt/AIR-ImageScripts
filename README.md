@@ -74,6 +74,7 @@ Usage: generateIcons
 Options:
   -s, --source DIR        Source directory (default: current directory)
   -o, --output DIR        Output directory (default: out)
+      --asset-version VER AIR asset format: 51.5 or legacy (default: 51.5)
   -f, --foreground FILE   Icon foreground layer image with transparency (default: icon-foreground.png)
   -b, --background FILE   Icon background layer image (default: icon-background.png)
   -m, --monochrome FILE   Icon monochrome image (default: icon-monochrome.png)
@@ -85,6 +86,21 @@ Options:
   -h, --help              Display this help message
 ```
 
+
+### AIR Asset Versions
+
+By default, the script generates assets for AIR 51.5 and newer, using
+`air_splash.imageset`. For earlier AIR SDKs, select the legacy format, which uses
+`splash_landscape.imageset` and `splash_portrait.imageset` instead:
+
+```bash
+./generateIcons --source config/icons --output out
+./generateIcons --source config/icons --output out-legacy --asset-version legacy
+```
+
+Use `--asset-version 51.5` to select the new format explicitly. The values select
+asset formats, not arbitrary AIR SDK version numbers. Both formats keep the shared
+launch image, storyboard, app icons, and Android resources.
 
 ### Assets
 
@@ -143,6 +159,183 @@ generateIcons -s config/icons -o src
 
 
 
+
+## GitHub Action
+
+Use the composite action on a macOS runner with full Xcode installed. It installs
+ImageMagick if needed and generates iOS and Android resources for one application.
+Check out your repository first so the action can access your source images.
+
+```yaml
+name: Generate App Icons
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  icons:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: distriqt/AIR-ImageScripts@v2
+        id: icons
+        with:
+          source-dir: icons-src/my-app
+          output-dir: icons-out/my-app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: my-app-icons
+          path: ${{ steps.icons.outputs.output-dir }}
+          if-no-files-found: error
+```
+
+The action runs its bundled script, not a separately downloaded executable.
+
+### Inputs And Outputs
+
+| Input | Default | Description |
+| --- | --- | --- |
+| `source-dir` | Required | One application's source image directory |
+| `output-dir` | `icons-out` | Directory to receive generated resources |
+| `asset-version` | `51.5` | `51.5` for AIR 51.5+, or `legacy` for earlier SDKs |
+| `foreground` | `icon-foreground.png` | Foreground image |
+| `background` | `icon-background.png` | Background image |
+| `monochrome` | `icon-monochrome.png` | Monochrome image |
+| `icon` | `icon.png` | Main icon override |
+| `dark` | `icon-dark.png` | Dark icon image |
+| `alt` | Empty | Optional alternate icon |
+| `launch` | `launch.png` | Optional launch image |
+| `color` | `none` | Fallback background color |
+
+Directory inputs are relative to the repository workspace, or absolute. Source
+and output directories must not overlap. Image paths are relative to `source-dir`;
+missing optional images use the generator's existing fallbacks. Empty optional
+inputs retain the script defaults. The source directory must be writable: the
+generator caches templates and creates temporary files there, and may create a
+missing dark icon. Avoid concurrent calls using the same source directory.
+
+The `output-dir` output is the absolute destination path, available only after
+successful generation and validation. Generated files are copied into that
+directory; unrelated existing files are not removed. Generation uses fresh staging
+files so old output cannot hide missing resources.
+
+For legacy AIR applications, add `asset-version: legacy` under the action's `with`
+inputs. The default is `asset-version: '51.5'`.
+
+AIR 51.5 templates download as `generate-assets-air-51.5.zip` from the latest
+published release and cache under `<source-dir>/.air-icon-generation-assets-51.5/`.
+Legacy templates retain `generate-assets-v2.zip` from the fixed `v2.0` release and
+cache under `<source-dir>/.air-icon-generation-assets-v2/`. The caches are separate
+and checked for incompatible splash sets. Network access is required on a cache
+miss. Pinning the action ref does not pin the remotely downloaded templates.
+No repository write permission or secret is required, and the action does not
+upload artifacts or commit files itself.
+
+### Multiple Applications
+
+Use a matrix with a separate source directory, destination, and artifact per app:
+
+```yaml
+jobs:
+  icons:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        app: [my-app, another-app]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: distriqt/AIR-ImageScripts@v2
+        id: icons
+        with:
+          source-dir: icons-src/${{ matrix.app }}
+          output-dir: icons-out/${{ matrix.app }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: icons-${{ matrix.app }}
+          path: ${{ steps.icons.outputs.output-dir }}
+          if-no-files-found: error
+```
+
+The complete [manual workflow example](generate-icons.yml) discovers application folders
+and accepts an optional single application name. Place it in your repository at
+`.github/workflows/generate-icons.yml` and adjust `SOURCE_ROOT` if necessary.
+
+### Real-World Example
+
+Suppose your repository contains a shopping application and a delivery application,
+each with its own source images:
+
+```text
+icons-src/
+  shopping-app/
+    icon-foreground.png
+    icon-background.png
+    icon-monochrome.png
+    icon-dark.png
+  delivery-app/
+    icon-foreground.png
+    icon-background.png
+    icon-monochrome.png
+    icon-dark.png
+```
+
+Place the [manual workflow example](generate-icons.yml) at `.github/workflows/generate-icons.yml` in your repository. 
+
+#### Generate Both Applications
+
+Open **Actions > Generate App Icons > Run workflow** and leave `app_folder` empty.
+The discovery job finds both folders and starts a separate macOS job for each:
+
+| Job | Source | Output | Downloadable artifact |
+| --- | --- | --- | --- |
+| Generate (delivery-app) | `icons-src/delivery-app` | `icons-out/delivery-app` | `icons-1` |
+| Generate (shopping-app) | `icons-src/shopping-app` | `icons-out/shopping-app` | `icons-2` |
+
+Download the artifacts from the workflow run's **Artifacts** section. Each contains
+that application's `Assets.car`, launch storyboard, classic icons, and Android
+resources. Artifact numbers follow alphabetical folder order for that run; they
+are not permanent application identifiers.
+
+#### Generate Only One Application
+
+After updating the shopping application's images, run the workflow with
+`app_folder` set to `shopping-app`. Only that application's assets are generated,
+and the result is uploaded as `icons-1`. The delivery application is not processed.
+
+## Release Template Automation
+
+For maintainers, the [release workflow](.github/workflows/release-assets.yml)
+builds two template ZIPs on macOS and attaches them whenever a GitHub release
+is published, including prereleases:
+
+| Archive | AIR compatibility | Splash image sets |
+| --- | --- | --- |
+| `generate-assets-air-51.5.zip` | AIR 51.5+ | `air_splash.imageset` |
+| `generate-assets-v2.zip` | Earlier AIR SDKs | `splash_landscape.imageset`, `splash_portrait.imageset` |
+
+Draft releases do not trigger it. Merge the
+workflow before publishing, and ensure the release tag contains the packaging
+script and its source files.
+
+The build disables code signing and validates the archive before uploading. It
+uses the built-in `GITHUB_TOKEN` with `contents: write`; no signing certificates or
+additional secrets are needed. An existing asset with the same name is not
+overwritten, so rerunning the upload will fail if the ZIP is already attached.
+
+Build either archive locally with:
+
+```bash
+bash src/generate-assets-zip.sh
+bash src/generate-assets-zip.sh --asset-version legacy
+```
+
+Publish a non-prerelease containing `generate-assets-air-51.5.zip` before using the
+new default without cached templates. The latest-release URL does not select
+prereleases, and the ZIP becomes available only after the release workflow finishes.
+Legacy downloads remain pinned to `v2.0`; uploading a legacy ZIP to another release
+does not redirect existing clients.
+Releases created by another workflow using `GITHUB_TOKEN` do not trigger this
+workflow; in that case, build and upload templates in the release-creating workflow
+instead.
 
 ## Outputs
 

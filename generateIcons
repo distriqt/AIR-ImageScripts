@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SCRIPTDIR=`dirname $0`
+SCRIPTDIR=$(dirname "$0")
 WORKINGDIR=`PWD`
 
 # Uses imagemagick 
@@ -21,22 +21,37 @@ WORKINGDIR=`PWD`
 
 # Check if required dependencies are installed
 check_dependencies() {
-    if ! command -v magick &> /dev/null; then
-        echo "Error: ImageMagick is not installed or not in your PATH"
-        echo "Please install ImageMagick with:"
-        echo "  brew install imagemagick"
-        exit 1
-    fi
-    
-    # Check for xcrun (only needed on macOS for Assets.car generation)
+    local missing=()
+    local dependency
+
+    for dependency in magick curl unzip bc; do
+        if ! command -v "$dependency" >/dev/null 2>&1; then
+            missing+=("$dependency")
+        fi
+    done
+
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        if ! command -v xcrun &> /dev/null; then
-            echo "Warning: xcrun not found. Assets.car generation may fail."
-            echo "Make sure Xcode command line tools are installed."
+        if ! command -v xcrun >/dev/null 2>&1; then
+            missing+=("xcrun")
         fi
     fi
-    
-    echo "Dependencies check passed: ImageMagick is installed"
+
+    if [ "${#missing[@]}" -gt 0 ]; then
+        echo "Error: Missing required dependencies: ${missing[*]}"
+        echo "Install the missing commands and ensure they are available on PATH."
+        if [[ " ${missing[*]} " == *" magick "* ]]; then
+            echo "Install ImageMagick with: brew install imagemagick"
+        fi
+        if [[ " ${missing[*]} " == *" xcrun "* ]]; then
+            echo "Install Xcode command line tools to provide xcrun."
+        fi
+        exit 1
+    fi
+
+    echo "Dependencies check passed: magick, curl, unzip, and bc"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "Dependencies check passed: xcrun"
+    fi
 }
 
 # Parse command line options
@@ -50,9 +65,18 @@ parse_args() {
     LAUNCH_PATH="launch.png"
     FILL_COLOUR="none"
     OUTPUT=""
+    ASSET_VERSION="51.5"
     
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --asset-version)
+                if [[ $# -lt 2 || ( "$2" != "51.5" && "$2" != "legacy" ) ]]; then
+                    echo "Error: --asset-version requires 51.5 or legacy" >&2
+                    exit 1
+                fi
+                ASSET_VERSION="$2"
+                shift 2
+                ;;
             -s|--source)
                 WORKINGDIR=$(readlink -f "$2")
                 shift 2
@@ -112,6 +136,7 @@ show_usage() {
     echo "Options:"
     echo "  -s, --source DIR        Source directory (default: current directory)"
     echo "  -o, --output DIR        Output directory (default: out)"
+    echo "      --asset-version VER AIR asset format: 51.5 or legacy (default: 51.5)"
     echo "  -f, --foreground FILE   Icon foreground layer image with transparency (default: icon-foreground.png)"
     echo "  -b, --background FILE   Icon background layer image (default: icon-background.png)"
     echo "  -m, --monochrome FILE   Icon monochrome image (default: icon-monochrome.png)"
@@ -124,17 +149,51 @@ show_usage() {
     exit 1
 }
 
+validate_template_assets() {
+    local catalog="${ASSETSSRCDIR}/Assets.xcassets"
+    if [[ "$ASSET_VERSION" == 51.5 ]]; then
+        [[ -s "$catalog/air_splash.imageset/Contents.json" &&
+           ! -e "$catalog/splash_landscape.imageset" && ! -e "$catalog/splash_portrait.imageset" ]]
+    else
+        [[ -s "$catalog/splash_landscape.imageset/Contents.json" &&
+           -s "$catalog/splash_portrait.imageset/Contents.json" && ! -e "$catalog/air_splash.imageset" ]]
+    fi
+}
+
 # Download assets if not present
 download_assets() {
 
     local download_dir=$1
-    local download_assets_zip=${download_dir}/generate-assets-v2.zip
+    local download_assets_zip=${download_dir}/${ASSETS_ARCHIVE}
+
+    if [[ -d "${ASSETSSRCDIR}/Assets.xcassets" ]]; then
+        validate_template_assets || {
+            echo "Error: Cached templates do not match asset version $ASSET_VERSION. Remove $download_dir and retry." >&2
+            return 1
+        }
+        return 0
+    fi
 
     if [ ! -f "${download_assets_zip}" ]; then
         echo "Downloading assets: ${download_assets_zip}"
-        until $(curl -L "https://github.com/distriqt/AIR-ImageScripts/releases/download/v2.0/generate-assets-v2.zip" --output "${download_assets_zip}"); do
-            printf '.'
+        local attempt=1
+        local max_attempts=5
+        while [ "$attempt" -le "$max_attempts" ]; do
+            if curl --fail --location --silent --show-error \
+                --output "${download_assets_zip}" \
+                "${ASSETS_URL}"; then
+                break
+            fi
+
+            rm -f "${download_assets_zip}"
+            if [ "$attempt" -eq "$max_attempts" ]; then
+                echo "Error: Asset download failed after ${max_attempts} attempts"
+                return 1
+            fi
+
+            echo "Asset download failed; retrying in 5 seconds (${attempt}/${max_attempts})"
             sleep 5
+            attempt=$((attempt + 1))
         done
     fi
 
@@ -152,6 +211,10 @@ download_assets() {
         rm -f "${download_assets_zip}" 2>/dev/null
         exit 1
     fi
+    validate_template_assets || {
+        echo "Error: Downloaded templates do not match asset version $ASSET_VERSION" >&2
+        return 1
+    }
 }
 
 
@@ -197,7 +260,15 @@ if [ ! -d "${WORKINGDIR}" ]; then
     show_usage 
 fi
 
-ASSETSDIR=${WORKINGDIR}/.air-icon-generation-assets-v2
+if [[ "$ASSET_VERSION" == 51.5 ]]; then
+    ASSETSDIR=${WORKINGDIR}/.air-icon-generation-assets-51.5
+    ASSETS_ARCHIVE=generate-assets-air-51.5.zip
+    ASSETS_URL=https://github.com/distriqt/AIR-ImageScripts/releases/latest/download/${ASSETS_ARCHIVE}
+else
+    ASSETSDIR=${WORKINGDIR}/.air-icon-generation-assets-v2
+    ASSETS_ARCHIVE=generate-assets-v2.zip
+    ASSETS_URL=https://github.com/distriqt/AIR-ImageScripts/releases/download/v2.0/${ASSETS_ARCHIVE}
+fi
 
 
 ASSETSSRCDIR=${ASSETSDIR}/src
@@ -207,7 +278,7 @@ if [ -d "${ASSETSWORKING}" ]; then
 fi
 
 mkdir -p "${OUTPUT}"  2>/dev/null
-OUTPUTDIR=$(readlink -f ${OUTPUT})
+OUTPUTDIR=$(readlink -f "${OUTPUT}")
 if [ ! -d "${OUTPUTDIR}" ]; then 
     echo "No output dir: ${OUTPUTDIR}"
     show_usage 
@@ -225,7 +296,7 @@ BACKGROUND_COLOR=${FILL_COLOUR}
 ICON_MONOCHROME=${TMPDIR}/icon-monochrome.png
 
 mkdir -p "${ASSETSSRCDIR}"  2>/dev/null
-download_assets ${ASSETSDIR}
+download_assets "${ASSETSDIR}" || exit 1
 cp -Rf "${ASSETSSRCDIR}" "${ASSETSWORKING}"
 
 
@@ -330,8 +401,8 @@ generate_appicon () {
     cp -Rf "${ASSETSSRCDIR}/Assets.xcassets/AppIcon.appiconset/Contents.json" "${APPICONSET}/Contents.json"
     sed -i.bak "s/Icon-App/${ICONNAME}/" "${APPICONSET}/Contents.json"
 
-    rm -f ${APPICONSET}/Icon-App*
-    rm -f ${APPICONSET}/Contents.json.bak
+    rm -f "${APPICONSET}"/Icon-App*
+    rm -f "${APPICONSET}/Contents.json.bak"
 
     generate_appicon_sizes "${APPICONSET}" "${ICONSRC}" "${ICONNAME}"
     if [ -f "$ICONDARKSRC" ]; then 
@@ -375,14 +446,14 @@ generate_ios_assets_car() {
     LAUNCHSET=$assets_working/Assets.xcassets/LaunchImage.imageset
     if [ -f "${launch}" ]; then
         echo "   - using supplied launch image"
-        magick ${launch} -resize 2400x2400 "${LAUNCHSET}/LaunchImage.png" 2>/dev/null
-    elif [ -f "${icon}" ] && [ -f "${icon_background}" ]; then 
+        magick "${launch}" -resize 2400x2400 "${LAUNCHSET}/LaunchImage.png" 2>/dev/null || return 1
+    elif [ -f "${ICON_FOREGROUND}" ] && [ -f "${ICON_BACKGROUND}" ]; then 
         echo "   - layering launch image from foreground and background"
-        magick "${icon_background}" -resize "2400x2400^" -gravity center -extent "2400x2400" "${tmp_dir}/launch_bg.png"
-        layer_images "${icon}" "${tmp_dir}/launch_bg.png" "${LAUNCHSET}/LaunchImage.png" 
+        magick "${ICON_BACKGROUND}" -resize "2400x2400^" -gravity center -extent "2400x2400" "${tmp_dir}/launch_bg.png" || return 1
+        layer_images "${ICON_FOREGROUND}" "${tmp_dir}/launch_bg.png" "${LAUNCHSET}/LaunchImage.png" || return 1
         rm -f "${tmp_dir}/launch_bg.png"
     else 
-        magick ${icon} -background ${FILL_COLOUR} -gravity center -resize 1024x1024 -extent 2400x2400 "${LAUNCHSET}/LaunchImage.png"
+        magick "${ICON_FOREGROUND}" -background "${FILL_COLOUR}" -gravity center -resize 1024x1024 -extent 2400x2400 "${LAUNCHSET}/LaunchImage.png" || return 1
     fi
 
     echo " - Assets.car: actool"
@@ -396,7 +467,7 @@ generate_ios_assets_car() {
         --minimum-deployment-target 12.0 \
         --include-all-app-icons \
         --app-icon AppIcon \
-        --output-partial-info-plist "${tmp_dir}/partial.plist" 1>/dev/null
+        --output-partial-info-plist "${tmp_dir}/partial.plist" 1>/dev/null || return 1
 
     # Check various locations for the Assets.car file
     if [ -f "${tmp_dir}/Assets.car" ]; then
@@ -417,7 +488,7 @@ generate_ios_assets_car() {
         return 1
     fi
 
-    cp -Rf "${assets_working}/LaunchScreen.storyboardc" "${output_dir}/."
+    cp -Rf "${assets_working}/LaunchScreen.storyboardc" "${output_dir}/." || return 1
     echo " - Assets.car: complete"
     return 0
 }
@@ -430,7 +501,12 @@ generate_ios_assets_car \
     "${LAUNCH}" \
     "${OUTPUTDIR}" \
     "${TMPDIR}" \
-    "${ASSETSWORKING}"
+    "${ASSETSWORKING}" || {
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            echo "Error: iOS asset generation failed" >&2
+            exit 1
+        fi
+    }
 
 
 
@@ -482,8 +558,8 @@ generate_resource() {
     generate_circular_icon "${output_dir}/icon.png" "${output_dir}/icon_round.png" ${size}
 }
 
-mkdir -p ${OUTPUTDIR}/res 2>/dev/null
-cp -Rf ${ASSETSSRCDIR}/res/* ${OUTPUTDIR}/res
+mkdir -p "${OUTPUTDIR}/res" 2>/dev/null
+cp -Rf "${ASSETSSRCDIR}"/res/* "${OUTPUTDIR}/res"
 
 icon_configs=(
     "mdpi:48:2.25"

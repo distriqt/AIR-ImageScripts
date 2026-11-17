@@ -1,7 +1,7 @@
 .DS_Store
 out
 assets
-src/generate-assets/
+src/generate-assets-*
 .air-icon-generation*
 tmp
 *.zip
